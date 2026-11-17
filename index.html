@@ -164,6 +164,46 @@
             #winModal > div, #raceModal > div, #gameOverModal > div { padding: 9px 14px !important; }
             #winModal h2, #gameOverModal h2, #raceTitle { font-size: 19px; }
         }
+
+        /* ===== HUD & KONTROL SERAGAM (solo = mabar, portrait = landscape) =====
+           Ukuran memakai vmin sehingga proporsinya sama di semua HP; blok ini sengaja ditaruh terakhir. */
+        #touchControls {
+            position: absolute; left: 0; right: 0; width: 100%;
+            bottom: max(16px, env(safe-area-inset-bottom));
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+            align-items: flex-end; opacity: .92;
+        }
+        #touchControls > div:first-child {
+            width: clamp(126px, 34vmin, 158px) !important; height: clamp(126px, 34vmin, 158px) !important;
+            padding: 7px !important; gap: 6px !important; border-radius: 24px !important;
+            background: rgba(15, 23, 42, .26) !important; backdrop-filter: blur(6px);
+        }
+        #touchControls > div:first-child button {
+            min-width: 0; min-height: 0; border-radius: 14px; touch-action: none;
+            font-size: clamp(18px, 5.4vmin, 24px); background: rgba(255,255,255,.9);
+        }
+        #btnJump {
+            width: clamp(80px, 23vmin, 100px) !important; height: clamp(80px, 23vmin, 100px) !important;
+            flex-shrink: 0; border-width: 4px; font-size: clamp(13px, 3.6vmin, 16px);
+        }
+        #btnJump i { font-size: clamp(20px, 5.6vmin, 26px); }
+        #audioToggleBtn { opacity: .7; }
+        #audioToggleBtn.audio-on { opacity: 1; }
+
+        @media (max-width: 640px) and (orientation: portrait) {
+            /* HUD ringkas: 2 baris tipis, kode room jadi pil kecil di bawah HUD (tidak menambah tinggi) */
+            #hudHeader { padding: 6px !important; gap: 5px !important; border-radius: 15px !important; }
+            #hudHeader > div:first-child { grid-template-columns: 38px minmax(0, 1fr) 38px !important; gap: 6px !important; }
+            #hudHeader > div:first-child > button,
+            #hudHeader > div:first-child > div { min-height: 34px !important; padding: 4px 6px !important; border-radius: 11px !important; }
+            #hudHeader > div:first-child > div span { font-size: 12px !important; }
+            #audioStatus { display: none !important; }
+            #hudHeader > div:last-child { gap: 5px !important; }
+            #hudHeader > div:last-child > div { min-height: 30px !important; padding: 4px 4px !important; font-size: 11px !important; border-radius: 10px !important; }
+            #roomBadge { position: absolute; top: 100%; right: 6px; margin-top: 4px; grid-column: auto !important; padding: 2px 9px !important; font-size: 10px !important; border-radius: 9px !important; }
+            #playersPanel { top: 106px !important; left: 8px !important; width: min(150px, 44vw) !important; }
+            #notificationBox { top: 106px !important; }
+        }
     </style>
 </head>
 <body class="bg-sky-400 w-screen h-screen m-0 p-0 relative">
@@ -1296,6 +1336,7 @@ themesData.forEach(t => (MORE[t.id] || []).forEach(([q, a, b, c, k]) => t.questi
         async function toggleAudio() {
             isAudioOn = !isAudioOn;
             document.getElementById('audioStatus').innerText = isAudioOn ? "Musik: ON" : "Musik: OFF";
+            document.getElementById('audioToggleBtn').classList.toggle('audio-on', isAudioOn);
             if (isAudioOn) { await Tone.start(); playBGM(); showNotification('Musik Ceria diaktifkan!'); }
             else { stopBGM(); showNotification('Musik dimatikan.'); }
         }
