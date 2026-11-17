@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obby Pintar 3D Multiplayer Roblox-Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+    <script>if(typeof Peer==="undefined"){document.write('<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')}</script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        body { font-family: 'Fredoka', sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+        /* CSS kritis: tidak bergantung pada Tailwind CDN supaya layar tidak berkedip/salah tampil */
+        .hidden { display: none !important; }
+        #mainMenu, #lobbyScreen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 16px; background: linear-gradient(#0ea5e9, #4f46e5, #6b21a8); }
+        #gameCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .retro-shadow { text-shadow: 3px 3px 0px #000; }
+        .btn-roblox { transition: all 0.1s ease; box-shadow: 0 6px 0 rgba(0,0,0,0.3); }
+        .btn-roblox:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-sky-400 w-screen h-screen m-0 p-0 relative">
+
+    <canvas id="gameCanvas" class="z-0"></canvas>
+
+    <div id="uiLayer" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        <div id="hudHeader" class="hidden pointer-events-auto flex flex-wrap items-center justify-between gap-3 bg-white/80 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border-2 border-white">
+            <div class="flex items-center space-x-4">
+                <button onclick="exitGame()" class="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-xl shadow btn-roblox flex items-center gap-2">
+                    <i class="fa-solid fa-house"></i> <span class="hidden sm:inline">Menu</span>
+                </button>
+                <div class="bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl shadow flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-yellow-300"></i>
+                    <span id="hudThemeName" class="text-sm md:text-base">Matematika Dasar</span>
+                </div>
+                <button onclick="toggleAudio()" id="audioToggleBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-2 rounded-xl shadow btn-roblox flex items-center gap-2" title="Musik Ceria">
+                    <i class="fa-solid fa-music"></i> <span id="audioStatus" class="text-xs">Musik: OFF</span>
+                </button>
+            </div>
+            <div class="flex items-center space-x-3 md:space-x-4">
+                <div class="bg-amber-400 text-amber-950 font-extrabold px-3 py-1.5 rounded-xl shadow flex items-center gap-2 border-2 border-amber-200">
+                    <i class="fa-solid fa-stairs text-amber-700"></i><span id="hudStage">Tahap 1/10</span>
+                </div>
+                <div class="bg-yellow-400 text-yellow-950 font-extrabold px-3 py-1.5 rounded-xl shadow flex items-center gap-2 border-2 border-yellow-200">
+                    <i class="fa-solid fa-coins text-amber-600"></i><span id="hudCoins">0</span>
+                </div>
+                <div class="bg-emerald-500 text-white font-extrabold px-3 py-1.5 rounded-xl shadow flex items-center gap-2 border-2 border-emerald-300">
+                    <i class="fa-solid fa-stopwatch text-emerald-100"></i><span id="hudTimer">0s</span>
+                </div>
+                <div class="bg-rose-500 text-white font-extrabold px-3 py-1.5 rounded-xl shadow flex items-center gap-2 border-2 border-rose-300">
+                    <i class="fa-solid fa-heart text-rose-200"></i><span id="hudLives">3</span>
+                </div>
+                <div id="roomBadge" class="hidden bg-purple-600 text-white font-bold px-3 py-1.5 rounded-xl shadow text-xs">
+                    Room: <span id="hudRoomCode"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="touchControls" class="hidden pointer-events-auto flex justify-between items-end w-full pb-6 px-4">
+            <div class="grid grid-cols-3 gap-2 w-36 h-36 bg-black/20 backdrop-blur-sm p-2 rounded-3xl border border-white/30">
+                <div></div>
+                <button id="btnUp" class="bg-white/80 active:bg-white rounded-xl shadow flex items-center justify-center text-xl font-bold text-slate-800"><i class="fa-solid fa-chevron-up"></i></button>
+                <div></div>
+                <button id="btnLeft" class="bg-white/80 active:bg-white rounded-xl shadow flex items-center justify-center text-xl font-bold text-slate-800"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="flex items-center justify-center text-white/50"><i class="fa-solid fa-circle-dot"></i></div>
+                <button id="btnRight" class="bg-white/80 active:bg-white rounded-xl shadow flex items-center justify-center text-xl font-bold text-slate-800"><i class="fa-solid fa-chevron-right"></i></button>
+                <div></div>
+                <button id="btnDown" class="bg-white/80 active:bg-white rounded-xl shadow flex items-center justify-center text-xl font-bold text-slate-800"><i class="fa-solid fa-chevron-down"></i></button>
+                <div></div>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button id="btnJump" class="w-24 h-24 bg-amber-400 active:bg-amber-500 border-4 border-white text-amber-950 rounded-full shadow-2xl flex flex-col items-center justify-center font-black text-lg btn-roblox">
+                    <i class="fa-solid fa-angles-up text-2xl"></i><span>JUMP</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MENU UTAMA -->
+    <div id="mainMenu" class="z-20 custom-scrollbar" style="touch-action:pan-y">
+        <div class="text-center my-6">
+            <h1 class="text-5xl md:text-7xl font-black text-yellow-300 tracking-wider retro-shadow uppercase">
+                <i class="fa-solid fa-cubes text-white"></i> Obby Pintar 3D
+            </h1>
+            <p class="text-white text-lg md:text-xl font-semibold mt-2 drop-shadow">Petualangan Belajar & Lompat Gaya Roblox dengan 20 Tema Seru!</p>
+        </div>
+
+        <div class="bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-2xl w-full max-w-4xl border-4 border-white mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+                <div class="bg-purple-100 p-3 rounded-2xl text-purple-600 text-xl"><i class="fa-solid fa-users"></i></div>
+                <div>
+                    <h3 class="font-bold text-slate-800">Mabar Balapan (maks 4 pemain)</h3>
+                    <p class="text-xs text-slate-500">Host buat room & pilih game, teman gabung pakai kode</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <input type="text" id="inputName" maxlength="12" placeholder="Nama (opsional)" class="px-4 py-2 rounded-xl border-2 border-purple-300 font-bold text-purple-900 focus:outline-none focus:border-purple-600 w-36">
+                <input type="text" id="inputRoomCode" placeholder="Kode Ruangan (Cth: OBBY999)" class="px-4 py-2 rounded-xl border-2 border-purple-300 font-bold uppercase text-purple-900 focus:outline-none focus:border-purple-600 w-44">
+                <button onclick="joinRoom()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-2 rounded-xl shadow btn-roblox">Gabung</button>
+                <button onclick="createRoom()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl shadow btn-roblox">Buat Room</button>
+            </div>
+        </div>
+
+        <div class="w-full max-w-4xl mb-10">
+            <h2 class="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-gamepad text-yellow-300"></i> Main Sendiri - Pilih 1 dari 20 Tema Obby:
+            </h2>
+            <div id="themesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+        </div>
+    </div>
+
+    <!-- LOBI BALAPAN -->
+    <div id="lobbyScreen" class="hidden z-20 custom-scrollbar" style="touch-action:pan-y">
+        <div class="text-center my-4">
+            <h2 class="text-4xl font-black text-yellow-300 retro-shadow">LOBI BALAPAN</h2>
+            <p class="text-white font-bold mt-2">Bagikan kode ini ke temanmu (maks 4 pemain):</p>
+            <div class="flex items-center justify-center gap-2 mt-1"><span id="lobbyCode" class="bg-white text-purple-700 text-4xl md:text-5xl font-black tracking-widest px-6 py-2 rounded-2xl shadow-xl border-4 border-yellow-300"></span><button onclick="copyCode()" class="bg-yellow-400 text-amber-950 font-bold px-4 py-3 rounded-xl btn-roblox"><i class="fa-solid fa-copy"></i> Salin</button></div>
+            <p id="netMode" class="text-white/80 text-xs mt-2"></p>
+        </div>
+        <div id="lobbySlots" class="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-4xl mb-4"></div>
+        <p id="lobbyTheme" class="text-yellow-200 text-xl font-bold mb-3"></p>
+        <div id="lobbyThemesWrap" class="w-full max-w-4xl mb-4">
+            <p class="text-white font-semibold mb-2">Host: pilih game balapan</p>
+            <div id="lobbyThemes" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+        </div>
+        <p id="lobbyWait" class="hidden text-white/80 mb-3">Menunggu host memulai balapan...</p>
+        <div class="flex gap-3 mb-8">
+            <button id="btnStartRace" onclick="hostStart()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-8 py-3 rounded-2xl shadow btn-roblox"><i class="fa-solid fa-flag-checkered"></i> Mulai Balapan</button>
+            <button onclick="leaveRoom()" class="bg-rose-500 hover:bg-rose-600 text-white font-bold px-6 py-3 rounded-2xl shadow btn-roblox">Keluar Room</button>
+        </div>
+    </div>
+
+    <div id="countdown" class="hidden absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+        <span id="countNum" class="text-9xl font-black text-white retro-shadow"></span>
+    </div>
+
+    <div id="quizModal" class="hidden absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl border-4 border-yellow-400">
+            <div class="flex justify-between items-center mb-4">
+                <span id="quizStageBadge" class="bg-indigo-100 text-indigo-800 font-bold px-3 py-1 rounded-xl text-sm">Tahap 1</span>
+                <span id="quizThemeBadge" class="bg-amber-100 text-amber-800 font-bold px-3 py-1 rounded-xl text-sm">Matematika</span>
+            </div>
+            <h3 id="quizQuestion" class="text-xl md:text-2xl font-black text-slate-800 mb-6 text-center">Berapa hasil dari 5 + 3?</h3>
+            <div id="quizOptions" class="grid grid-cols-1 gap-3"></div>
+        </div>
+    </div>
+
+    <div id="winModal" class="hidden absolute inset-0 z-30 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border-4 border-emerald-400 text-center">
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl shadow-inner"><i class="fa-solid fa-trophy"></i></div>
+            <h2 class="text-3xl font-black text-slate-800 mb-2">LUAR BIASA!</h2>
+            <p class="text-slate-600 mb-6">Kamu berhasil menyelesaikan seluruh rintangan Obby di tema ini!</p>
+            <div class="bg-slate-100 p-4 rounded-2xl mb-6 flex justify-around font-bold text-slate-700">
+                <div>Koin: <span id="winCoins" class="text-amber-600">0</span></div>
+                <div>Waktu: <span id="winTime" class="text-emerald-600">0s</span></div>
+            </div>
+            <button onclick="backToMenu()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl shadow-lg btn-roblox">Kembali ke Menu Utama</button>
+        </div>
+    </div>
+
+    <div id="raceModal" class="hidden absolute inset-0 z-30 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border-4 border-emerald-400 text-center">
+            <h2 id="raceTitle" class="text-3xl font-black text-slate-800 mb-4"></h2>
+            <div id="rankList" class="bg-slate-100 p-4 rounded-2xl mb-6 font-bold text-slate-700 space-y-1"></div>
+            <button onclick="backToLobby()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl shadow-lg btn-roblox">Kembali ke Lobi</button>
+        </div>
+    </div>
+
+    <div id="gameOverModal" class="hidden absolute inset-0 z-30 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border-4 border-rose-400 text-center">
+            <div class="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl shadow-inner"><i class="fa-solid fa-heart-crack"></i></div>
+            <h2 class="text-3xl font-black text-slate-800 mb-2">YAH, KAMU KALAH!</h2>
+            <p class="text-slate-600 mb-6">Nyawamu habis. Jangan menyerah, coba lagi yuk!</p>
+            <div class="bg-slate-100 p-4 rounded-2xl mb-6 flex justify-around font-bold text-slate-700 text-sm">
+                <div>Tahap: <span id="overStage" class="text-indigo-600">1/10</span></div>
+                <div>Koin: <span id="overCoins" class="text-amber-600">0</span></div>
+                <div>Waktu: <span id="overTime" class="text-emerald-600">0s</span></div>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button onclick="retryGame()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl shadow-lg btn-roblox"><i class="fa-solid fa-rotate-right"></i> Coba Lagi</button>
+                <button onclick="backToMenu()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl shadow-lg btn-roblox"><i class="fa-solid fa-gamepad"></i> Mainkan Game Lainnya</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="playersPanel" class="hidden absolute left-4 top-28 z-10 pointer-events-none bg-black/40 backdrop-blur-sm text-white rounded-2xl p-3 text-xs font-bold w-52 space-y-1"></div>
+    <div id="notificationBox" class="hidden absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 text-white px-6 py-3 rounded-2xl shadow-2xl border-2 border-white/30 font-bold text-center transition-all">Pesan Notifikasi</div>
+
+    <script>
+        // Bank soal: [pertanyaan, pilihan A, B, C, indeks jawaban benar (0/1/2)]
+const T = (id, name, icon, color, qs) => ({ id, name, icon, color, questions: qs.map(([q, a, b, c, k]) => ({ q, options: [a, b, c], correct: k })) });
+const themesData = [
+T(1,"Matematika Dasar","fa-calculator","bg-blue-500",[
+["Berapa hasil dari 7 + 8?","14","15","16",1],["Berapa hasil dari 12 - 5?","6","7","8",1],["Berapa 6 x 4?","24","20","28",0],["Berapa 20 : 4?","4","5","6",1],["Berapa hasil dari 9 + 6 - 3?","11","12","13",1],["Berapa 8 x 3?","22","24","26",1],["Berapa 50 - 15?","35","45","30",0],["Berapa 7 x 7?","42","49","56",1],["Berapa 81 : 9?","8","9","7",1],["Berapa 15 + 15 x 0?","0","15","30",1]]),
+T(2,"Geografi Indonesia","fa-earth-asia","bg-emerald-500",[
+["Ibu kota negara Indonesia adalah?","Surabaya","Jakarta","Bandung",1],["Pulau terbesar di Indonesia adalah?","Jawa","Sumatra","Kalimantan",2],["Gunung tertinggi di Indonesia adalah?","Kerinci","Semeru","Puncak Jaya",2],["Selat yang memisahkan Jawa dan Sumatra adalah?","Selat Sunda","Selat Bali","Selat Madura",0],["Provinsi paling timur di Indonesia saat ini adalah?","Papua","Maluku","Nusa Tenggara",0],["Candi Borobudur terletak di provinsi?","Jawa Timur","Jawa Tengah","DI Yogyakarta",1],["Danau terbesar di Indonesia adalah?","Danau Toba","Danau Singkarak","Danau Poso",0],["Ibu kota Provinsi Jawa Barat adalah?","Bogor","Bandung","Bekasi",1],["Pulau Komodo terletak di Nusa Tenggara...","Barat","Timur","Utara",1],["Lagu daerah 'Ampar-Ampar Pisang' berasal dari?","Kalimantan Selatan","Sumatra Barat","Sulawesi Selatan",0]]),
+T(3,"Bahasa Inggris","fa-language","bg-indigo-500",[
+["Bahasa Inggris dari 'Kucing' adalah?","Dog","Cat","Bird",1],["What color is the sky?","Blue","Red","Green",0],["Bahasa Inggris dari 'Terima kasih' adalah?","Sorry","Please","Thank you",2],["Bahasa Inggris dari 'Buku' adalah?","Pen","Book","Table",1],["Opposite of 'Big' is...","Small","Tall","Short",0],["What is 'Apple' in Indonesian?","Jeruk","Apel","Pisang",1],["Bahasa Inggris dari 'Air' adalah?","Fire","Water","Wind",1],["How do you say 'Selamat Pagi'?","Good Night","Good Morning","Good Afternoon",1],["Bahasa Inggris dari 'Sekolah' adalah?","School","House","Market",0],["What is number 'Ten'?","8","9","10",2]]),
+T(4,"Sains & Biologi","fa-flask","bg-purple-500",[
+["Hewan yang bernapas dengan paru-paru di air adalah?","Ikan","Lumba-lumba","Kepiting",1],["Tumbuhan hijau membuat makanan sendiri melalui proses?","Fotosintesis","Respirasi","Erosi",0],["Planet terbesar dalam tata surya adalah?","Mars","Saturnus","Jupiter",2],["Hewan pemakan daging disebut?","Herbivora","Karnivora","Omnivora",1],["Bagian tumbuhan yang menyerap air adalah?","Daun","Batang","Akar",2],["Alat pernapasan utama pada manusia adalah?","Jantung","Paru-paru","Hati",1],["Wujud air jika membeku menjadi?","Gas","Es","Uap",1],["Bumi berputar pada porosnya disebut?","Revolusi","Rotasi","Orbit",1],["Hewan yang mengalami metamorfosis sempurna adalah?","Kecoak","Kupu-kupu","Belalang",1],["Pusat tata surya adalah?","Bumi","Matahari","Bulan",1]]),
+T(5,"Sejarah Nasional","fa-landmark","bg-amber-500",[
+["Indonesia memproklamasikan kemerdekaan pada tahun?","1942","1945","1950",1],["Si pembaca teks Proklamasi Kemerdekaan RI adalah?","Soekarno","Moh. Hatta","Soedirman",0],["Hari Pahlawan diperingati setiap tanggal?","20 Mei","1 Juni","10 November",2],["Pahlawan wanita pejuang emansipasi wanita adalah?","R.A. Kartini","Cut Nyak Dien","Dewi Sartika",0],["Sumpah Pemuda diikrarkan pada tahun?","1908","1928","1945",1],["Lambang negara Indonesia adalah?","Garuda Pancasila","Bendera Merah Putih","Banteng",0],["Dasar negara Indonesia adalah?","UUD 1945","Pancasila","Bhinneka Tunggal Ika",1],["Gelar pahlawan nasional Diponegoro berasal dari daerah?","Aceh","Yogyakarta","Bali",1],["Organisasi pergerakan nasional pertama adalah?","Budi Utomo","Sarekat Islam","Muhammadiyah",0],["Kerajaan Hindu terbesar di Nusantara masa lalu adalah?","Sriwijaya","Majapahit","Singasari",1]]),
+T(6,"Teknologi & Komputer","fa-laptop-code","bg-cyan-500",[
+["Perangkat keras (hardware) untuk mengetik adalah?","Monitor","Keyboard","Mouse",1],["Kepanjangan dari WWW dalam internet adalah?","World Wide Web","World Web Wide","Web World Wide",0],["Otak dari sebuah komputer disebut?","RAM","CPU","Harddisk",1],["Program pengolah kata populer adalah?","Microsoft Word","Microsoft Excel","Adobe Photoshop",0],["Media sosial berbasis video pendek saat ini?","YouTube / TikTok","Notepad","Calculator",0],["Alat untuk menggerakkan kursor di layar komputer?","Printer","Mouse","Speaker",1],["Jaringan komputer global disebut?","Intranet","Internet","Extranet",1],["Tombol 'Ctrl + C' pada keyboard berfungsi untuk?","Copy","Paste","Cut",0],["Penyimpanan data awan disebut?","Flashdisk","Cloud Storage","CD-ROM",1],["Bahasa pemrograman dasar untuk web adalah?","HTML","C++","Python",0]]),
+T(7,"Pengetahuan Umum","fa-lightbulb","bg-rose-500",[
+["Jumlah jari tangan manusia normal adalah?","8","10","12",1],["Alat indra untuk mengecap rasa adalah?","Mata","Lidah","Telinga",1],["Warna bendera Indonesia adalah?","Merah Putih","Merah Biru","Putih Hijau",0],["Hewan yang dikenal sebagai raja hutan adalah?","Harimau","Singa","Gajah",1],["Jumlah hari dalam satu minggu adalah?","5","6","7",2],["Alat musik angklung berasal dari?","Jawa Barat","Sumatra Utara","Bali",0],["Kendaraan beroda dua yang dikayuh disebut?","Mobil","Sepeda","Motor",1],["Mata uang negara Jepang adalah?","Yuan","Ringgit","Yen",2],["Bulan pertama dalam kalender Masehi adalah?","Januari","Desember","Februari",0],["Rumah adat tradisional Toraja disebut?","Joglo","Tongkonan","Gadang",1]]),
+T(8,"Bahasa Indonesia","fa-book-open","bg-teal-500",[
+["Lawan kata dari 'Besar' adalah?","Tinggi","Kecil","Luas",1],["Sinonim (persamaan kata) dari 'Rajin' adalah?","Malas","Giat","Lambat",1],["Kata tanya untuk menanyakan tempat adalah?","Apa","Siapa","Di mana",2],["Kalimat yang berisi perintah disebut kalimat?","Tanya","Perintah","Berita",1],["Penulisan huruf kapital yang benar terdapat pada?","bandung","Bandung","bAnDuNg",1],["Gelar atau sebutan untuk orang tua laki-laki?","Ibu","Ayah","Bibi",1],["Dongeng tentang hewan yang berperilaku seperti manusia disebut?","Fabel","Legenda","Mitos",0],["Kata depan 'di' yang menunjukkan tempat ditulis?","Digabung","Dipisah","Dihapus",1],["Bunga nasional Indonesia (puspa bangsa) adalah?","Melati putih","Anggrek","Mawar",0],["Cerita rakyat asal Sumatra Utara yang terkenal?","Malin Kundang","Danau Toba","Sangkuriang",1]]),
+T(9,"Olahraga & Kesehatan","fa-futbol","bg-orange-500",[
+["Jumlah pemain dalam satu tim sepak bola di lapangan adalah?","10","11","12",1],["Olahraga memukul bola dengan raket dan kok disebut?","Basket","Bulu tangkis","Voli",1],["Sebelum berolahraga sebaiknya melakukan?","Tidur","Pemanasan","Makan berat",1],["Vitamin yang banyak terkandung dalam buah jeruk adalah?","Vitamin A","Vitamin C","Vitamin D",1],["Induk organisasi sepak bola Indonesia adalah?","PBSI","PSSI","PBVSI",1],["Lari jarak pendek dalam atletik disebut?","Maraton","Sprint","Estafet",1],["Makanan 4 sehat 5 sempurna disempurnakan dengan?","Susu","Keju","Cokelat",0],["Kolam renang standar memiliki bentuk?","Lingkaran","Persegi panjang","Segitiga",1],["Organ tubuh yang memompa darah adalah?","Paru-paru","Jantung","Ginjal",1],["Waktu istirahat malam yang baik bagi kesehatan minimal?","2 jam","8 jam","12 jam",1]]),
+T(10,"Seni & Budaya Nusantara","fa-palette","bg-pink-500",[
+["Kain tradisional Indonesia yang diwariskan secara UNESCO adalah?","Batik","Sutra","Denim",0],["Alat musik tradisional dari bambu asal Jawa Barat?","Gamelan","Angklung","Sasando",1],["Tari pendet berasal dari pulau?","Bali","Jawa","Sumatra",0],["Senjata tradisional khas Aceh adalah?","Keris","Rencong","Kujang",1],["Wayang kulit dimainkan oleh seorang?","Dalang","Sinden","Musikus",0],["Rumah adat Joglo berasal dari?","Jawa","Kalimantan","Papua",0],["Alat musik petik tradisional dari Pulau Rote NTT?","Sasando","Kolintang","Tifa",0],["Lagu daerah 'Suwe Ora Jamu' berasal dari?","Jawa Tengah","Bali","Betawi",0],["Seni melukis dengan lilin panas pada kain disebut?","Batik","Ukir","Anyam",0],["Tari Saman terkenal dengan gerakan yang?","Cepat & Serentak","Lambat sendirian","Akrobatik",0]]),
+T(11,"Agama & Budi Pekerti","fa-hands-holding-child","bg-emerald-600",[
+["Sikap terpuji saat teman mendapat musibah adalah?","Menertawakan","Menolong / Berempati","Membiarkan",1],["Janji harus selalu...","Ditepati","Dilupakan","Diingkari",0],["Berbuat baik kepada orang tua hukumnya adalah?","Wajib","Sunnah","Makruh",0],["Sikap jujur akan membawa...","Kebohongan","Keberuntungan & Kepercayaan","Kesusahan",1],["Gotong royong adalah cerminan sila ke berapa Pancasila?","Sila ke-2","Sila ke-3","Sila ke-5",1],["Sebelum makan kita dianjurkan untuk?","Berdoa","Langsung makan","Tidur",0],["Menghormati guru di sekolah adalah wujud sikap?","Sopan santun","Sombong","Acuh",0],["Sifat utama Nabi Muhammad SAW adalah?","Kadzib","Shiddiq","Khianat",1],["Toleransi antar umat beragama menciptakan?","Pertengkaran","Kedamaian","Perpecahan",1],["Membantu adik belajar adalah bentuk kasih sayang di?","Sekolah","Rumah","Jalan",1]]),
+T(12,"Astronomi & Luar Angkasa","fa-meteor","bg-violet-600",[
+["Planet terdekat dengan Matahari adalah?","Merkurius","Venus","Bumi",0],["Planet merah adalah sebutan untuk planet?","Mars","Jupiter","Uranus",0],["Benda langit yang memantulkan cahaya matahari pada malam hari?","Bintang","Bulan","Komet",1],["Garis edar planet mengelilingi matahari disebut?","Orbit","Rotasi","Galaksi",0],["Galaksi tempat bumi berada adalah?","Andromeda","Bima Sakti (Milky Way)","Sombrero",1],["Astronaut pertama yang menginjakkan kaki di bulan adalah?","Neil Armstrong","Yuri Gagarin","Buzz Aldrin",0],["Planet yang memiliki cincin paling indah adalah?","Saturnus","Mars","Neptunus",0],["Bintang jatuh sebenarnya adalah?","Meteor","Asteroid","Komet",0],["Satelit alami bumi adalah?","Bulan","Titan","Phobos",0],["Matahari dikategorikan sebagai sebuah...","Planet","Bintang","Satelit",1]]),
+T(13,"Ekonomi & Kewirausahaan","fa-wallet","bg-amber-600",[
+["Tempat bertemunya penjual dan pembeli disebut?","Sekolah","Pasar","Rumah sakit",1],["Alat tukar yang sah dalam kegiatan jual beli adalah?","Uang","Daun","Batu",0],["Menyisihkan sebagian uang saku untuk ditabung disebut?","Menabung","Berhutang","Berfoya-foya",0],["Orang yang menjual barang dagangan disebut?","Pembeli","Pedagang","Konsumen",1],["Kegiatan memakai barang atau jasa disebut?","Produksi","Distribusi","Konsumsi",2],["Kegiatan menghasilkan barang disebut?","Produksi","Konsumsi","Distribusi",0],["Lembaga resmi tempat menyimpan uang dan menabung adalah?","Bank","Koperasi","Pasar",0],["Keuntungan dalam berdagang disebut?","Rugi","Laba","Modal",1],["Mata uang resmi negara Indonesia adalah?","Rupiah","Ringgit","Dollar",0],["Sikap bijak dalam menggunakan uang saku adalah?","Hemat","Boros","Pelit",0]]),
+T(14,"Logika & Teka-Teki","fa-brain","bg-red-500",[
+["Benda apa yang punya banyak mata tapi tidak bisa melihat?","Jarum","Kentang","Kancing",1],["Masuk kering keluar basah, apakah itu?","Handuk","Baju","Air",0],["Pola 2, 4, 6, 8, ... angka berikutnya adalah?","9","10","12",1],["Jika 1 lusin = 12, berapa isi 2 lusin?","20","24","36",1],["Sapi apa yang bisa nulis?","Sapi tulis","Sapidol (Spidol)","Sapi rajin",1],["Manakah yang berbeda: Apel, Wortel, Jeruk, Mangga?","Apel","Wortel","Mangga",1],["Hari setelah Senin adalah?","Selasa","Rabu","Minggu",0],["Benda apa kalau dipukul malah bunyi nyaring?","Gendang","Meja","Lantai",0],["Pola A, B, A, B, ... huruf berikutnya adalah?","A","B","C",0],["Jika hari ini Kamis, 2 hari lagi adalah hari?","Jumat","Sabtu","Minggu",1]]),
+T(15,"Lingkungan Hidup & Alam","fa-seedling","bg-green-600",[
+["Penanaman kembali hutan yang gundul disebut?","Reboisasi","Urbanisasi","Erosi",0],["Sampah plastik sebaiknya dibuang ke tempat sampah?","Organik","Anorganik / Plastik","Sisa makanan",1],["Paru-paru dunia yang menghasilkan oksigen adalah?","Hutan","Gedung","Jalan raya",0],["Pemanasan global (global warming) disebabkan oleh?","Polusi gas rumah kaca","Menanam pohon","Hemat energi",0],["Hemat energi listrik dapat dilakukan dengan cara?","Mematikan lampu saat siang hari","Menyalakan AC terus","Menghidupkan semua TV",0],["Hewan langka dilindungi di Indonesia contohnya?","Badak bercula satu","Ayam kampung","Kucing kampung",0],["Air bersih sangat penting untuk...","Kesehatan tubuh","Merusak tanaman","Polusi",0],["Menjaga kebersihan lingkungan adalah tanggung jawab?","Semua warga","Petugas sampah saja","Pemerintah saja",0],["Bahan bakar fosil yang mencemari udara contohnya?","Bensin / Batubara","Air","Angin",0],["Energi alternatif pengganti minyak bumi yang ramah lingkungan?","Tenaga Surya / Matahari","Plastik","Asap pabrik",0]]),
+T(16,"Kesehatan & Tubuh Manusia","fa-heart-pulse","bg-rose-600",[
+["Berapa kali sehari kita dianjurkan menyikat gigi?","1 kali","2 kali","5 kali",1],["Sebelum makan kita wajib mencuci...","Kaki","Tangan dengan sabun","Baju",1],["Makanan bergizi seimbang harus mengandung?","Karbohidrat, Protein, Vitamin","Ciki dan Soda","Permen saja",0],["Olahraga teratur membuat tubuh menjadi?","Sehat dan bugar","Sakit","Lemas",0],["Mata kita memerlukan vitamin apa agar sehat?","Vitamin A","Vitamin C","Vitamin K",0],["Tanda tubuh kurang istirahat adalah?","Segar","Mengantuk dan lelah","Semangat",1],["Minum air putih setiap hari minimal berapa gelas?","2 gelas","8 gelas","20 gelas",1],["Bagian tubuh yang berfungsi untuk berpikir adalah?","Otak","Jantung","Perut",0],["Alat untuk mendengar detak jantung yang dipakai dokter adalah?","Stetoskop","Termometer","Suntikan",0],["Kebiasaan cuci tangan mencegah penularan?","Penyakit dan kuman","Kecerdasan","Kekayaan",0]]),
+T(17,"Penemuan & Tokoh Dunia","fa-lightbulb","bg-yellow-600",[
+["Penemu lampu pijar listrik adalah?","Thomas Alva Edison","Alexander Graham Bell","Albert Einstein",0],["Penemu pesawat terbang pertama adalah?","Wright Bersaudara","Isaac Newton","Galileo",0],["Penemu telepon adalah?","Alexander Graham Bell","Nikola Tesla","James Watt",0],["Ilmuwan penemu teori gravitasi bumi adalah?","Isaac Newton","Thomas Edison","Einstein",0],["Penemu mesin uap yang memicu revolusi industri?","James Watt","Einstein","Edison",0],["Penemu roda kendaraan pertama di masa kuno adalah?","Bangsa Sumeria","Bangsa Romawi","Bangsa Yunani",0],["Penemu teleskop astronomi modern?","Galileo Galilei","Newton","Tesla",0],["Penemu arus listrik bolak-balik (AC)?","Nikola Tesla","Edison","Bell",0],["Tokoh penemu vaksin polio adalah?","Jonas Salk","Louis Pasteur","Alexander Fleming",0],["Penemu antibiotik Penisilin?","Alexander Fleming","Pasteur","Salk",0]]),
+T(18,"Sastra & Dongeng Nusantara","fa-book","bg-indigo-600",[
+["Si Kancil dalam cerita rakyat dikenal sebagai hewan yang?","Cerdik / Licik","Pemalas","Pemarah",0],["Asal-usul Tangkuban Perahu berkaitan dengan kisah?","Sangkuriang","Malin Kundang","Roro Jonggrang",0],["Putri yang dikutuk menjadi candi di Prambanan?","Roro Jonggrang","Dayang Sumbi","Cinderella",0],["Anak durhaka yang dikutuk menjadi batu di Sumatra Barat?","Malin Kundang","Si Pitung","Bawang Merah",0],["Kisah bawang merah dan bawang putih mengajarkan sifat?","Kebaikan mengalahkan kejahatan","Kecurangan","Kebencian",0],["Cerita rakyat Timun Mas mengisahkan perjuangan melawan?","Raksasa","Naga","Harimau",0],["Lutung Kasarung adalah cerita sastra tradisional dari?","Jawa Barat","Bali","Sumatra",0],["Tokoh jagoan Betawi yang membela rakyat miskin?","Si Pitung","Gatotkaca","Diponegoro",0],["Burung Garuda dalam mitologi adalah wujud kendaraan dewa?","Dewa Wisnu","Dewa Siwa","Dewa Brahma",0],["Tokoh Pandawa yang bertubuh besar dan kuat adalah?","Bima","Arjuna","Nakula",0]]),
+T(19,"Seni Musik & Alat Musik","fa-music","bg-purple-600",[
+["Alat musik tradisional Sasando dimainkan dengan cara?","Dipetik","Ditiup","Digesek",0],["Alat musik tradisional Gamelan berasal dari budaya?","Jawa & Bali","Papua","Maluku",0],["Alat musik modern berdawai gitar dimainkan dengan?","Dipetik / Strumming","Ditiup","Dipukul",0],["Alat musik pukul tradisional dari Papua?","Tifa","Kolintang","Angklung",0],["Pencipta lagu wajib nasional 'Indonesia Raya' adalah?","W.R. Supratman","Ismail Marzuki","C. Simanjuntak",0],["Alat musik pianika dimainkan dengan cara ditekan dan?","Ditiup","Dipukul","Ditarik",0],["Ansambel alat pukul kayu dari Minahasa?","Kolintang","Gamelan","Tifa",0],["Alat musik seruling dimainkan dengan cara?","Ditiup","Dipetik","Digesek",0],["Pencipta lagu 'Maju Tak Gentar' adalah?","C. Simanjuntak","W.R. Supratman","Ibu Sud",0],["Tangga nada natural dalam musik dikenal dengan?","Do Re Mi Fa Sol La Si Do","A B C D E F G","1 2 3 4 5",0]]),
+T(20,"Coding & Algoritma Dasar","fa-code","bg-blue-600",[
+["Langkah-langkah logis penyelesaian masalah disebut?","Algoritma","Variabel","Bug",0],["Tempat menyimpan nilai atau data di dalam program?","Variabel","Monitor","Kabel",0],["Perintah percabangan kondisi dalam program menggunakan?","If / Else","Loop","Print",0],["Perintah perulangan dalam pemrograman disebut?","Loop / For / While","Stop","Delete",0],["Kesalahan atau error dalam kode program disebut?","Bug","Virus","Error 404",0],["Bahasa pemrograman balok visual untuk anak-anak?","Scratch","C++","Assembly",0],["Simbol perbandingan 'sama dengan' dalam pemrograman umumnya?","==","=","+",0],["Perintah untuk menampilkan teks di layar konsol?","Print / Console.log","Input","Read",0],["Sistem bilangan biner komputer hanya terdiri dari angka?","0 dan 1","1 sampai 9","A sampai Z",0],["Game Roblox Studio menggunakan bahasa skrip apa?","Lua","Python","Java",0]])
+];
+
+// --- TAMBAHAN SOAL: tiap tema sekarang punya 20 soal ---
+const MORE = {
+1: (() => { const o = []; for (let i = 0; i < 10; i++) { const a = 13 + i * 4, b = 3 + i; let q, r; if (i % 3 === 0) { q = `Berapa ${a} + ${b}?`; r = a + b; } else if (i % 3 === 1) { q = `Berapa ${a} - ${b}?`; r = a - b; } else { q = `Berapa ${b} x ${i + 2}?`; r = b * (i + 2); } o.push([q, String(r - 1), String(r), String(r + 2), 1]); } return o; })(),
+2: [["Ibu kota Provinsi Jawa Timur adalah?","Surabaya","Malang","Semarang",0],["Laut di utara Pulau Jawa adalah?","Laut Jawa","Laut Banda","Laut Arafura",0],["Pulau Dewata adalah julukan untuk?","Lombok","Bali","Sumba",1],["Gunung berapi di Selat Sunda yang meletus tahun 1883?","Krakatau","Merapi","Bromo",0],["Ibu kota Provinsi Sumatra Utara adalah?","Medan","Padang","Palembang",0],["Pulau yang bentuknya mirip huruf K adalah?","Sulawesi","Jawa","Bali",0],["Sungai Kapuas terdapat di pulau?","Kalimantan","Jawa","Bali",0],["Ibu kota Provinsi Sulawesi Selatan adalah?","Makassar","Manado","Palu",0],["Garis khayal yang membagi bumi utara dan selatan?","Khatulistiwa","Garis Bujur","Garis Tanggal",0],["Indonesia terletak di antara benua Asia dan?","Australia","Afrika","Eropa",0]],
+3: [["What is 'Merah' in English?","Red","Blue","Green",0],["Plural of 'Child' is...","Childs","Children","Childrens",1],["Bahasa Inggris dari 'Makan' adalah?","Eat","Drink","Sleep",0],["I ... a student.","am","is","are",0],["What day comes after Monday?","Tuesday","Sunday","Friday",0],["Bahasa Inggris dari 'Ibu' adalah?","Father","Mother","Sister",1],["What is 'Satu' in English?","One","Two","Three",0],["Opposite of 'Hot' is...","Cold","Warm","Fire",0],["How many days are in a week?","Five","Seven","Ten",1],["Bahasa Inggris dari 'Rumah' adalah?","House","Horse","Hose",0]],
+4: [["Gas yang kita hirup untuk bernapas adalah?","Oksigen","Nitrogen","Karbon dioksida",0],["Hewan yang berkembang biak dengan bertelur disebut?","Ovipar","Vivipar","Herbivora",0],["Alat untuk mengukur suhu adalah?","Termometer","Barometer","Penggaris",0],["Air mendidih pada suhu berapa derajat Celsius?","100","50","0",0],["Bagian bunga yang kelak menjadi buah adalah?","Bakal buah","Mahkota","Daun",0],["Planet tempat kita tinggal adalah?","Bumi","Mars","Venus",0],["Hewan pemakan tumbuhan disebut?","Herbivora","Karnivora","Omnivora",0],["Alat gerak aktif pada manusia adalah?","Otot","Paru-paru","Lambung",0],["Air menguap karena panas matahari disebut?","Evaporasi","Kondensasi","Presipitasi",0],["Pelangi terjadi karena cahaya matahari yang...","Dibiaskan","Dimatikan","Dibekukan",0]],
+5: [["Presiden pertama Republik Indonesia adalah?","Soekarno","Soeharto","B.J. Habibie",0],["Wakil presiden pertama Indonesia adalah?","Moh. Hatta","Sutan Sjahrir","Adam Malik",0],["Naskah Proklamasi diketik oleh?","Sayuti Melik","Soekarno","Ahmad Soebardjo",0],["Bendera Pusaka Merah Putih dijahit oleh?","Fatmawati","Kartini","Cut Meutia",0],["Kerajaan Islam pertama di Indonesia adalah?","Samudera Pasai","Majapahit","Mataram Kuno",0],["Perang Diponegoro juga disebut?","Perang Jawa","Perang Padri","Perang Aceh",0],["Hari lahir Pancasila diperingati pada?","1 Juni","17 Agustus","28 Oktober",0],["Candi Borobudur adalah peninggalan agama?","Buddha","Islam","Kristen",0],["Pahlawan wanita dari Aceh yang gigih melawan Belanda?","Cut Nyak Dien","Dewi Sartika","Kartini",0],["Hari Kebangkitan Nasional diperingati tanggal?","20 Mei","17 Agustus","28 Oktober",0]],
+6: [["Perangkat untuk mencetak dokumen ke kertas?","Printer","Scanner","Webcam",0],["Kepanjangan USB adalah?","Universal Serial Bus","United Super Box","Under Standard Bit",0],["Aplikasi untuk menjelajah internet disebut?","Browser","Compiler","Driver",0],["Ekstensi file gambar yang umum adalah?",".jpg",".exe",".mp3",0],["Program jahat yang merusak komputer disebut?","Virus","Antivirus","Browser",0],["Tombol 'Ctrl + V' berfungsi untuk?","Paste","Copy","Save",0],["Kecerdasan buatan sering disingkat?","AI","IT","PC",0],["Alat penyimpan data portabel adalah?","Flashdisk","Monitor","Speaker",0],["Kata sandi yang aman adalah yang?","Kuat dan rahasia","Mudah ditebak","Dibagikan ke teman",0],["Satuan terkecil data komputer adalah?","Bit","Gigabyte","Pixel",0]],
+7: [["Jumlah bulan dalam setahun adalah?","12","10","11",0],["Hewan tercepat di darat adalah?","Cheetah","Kuda","Kelinci",0],["Benua terbesar di dunia adalah?","Asia","Afrika","Eropa",0],["Campuran warna merah dan kuning menjadi?","Oranye","Hijau","Ungu",0],["Ibu kota Jepang adalah?","Tokyo","Seoul","Beijing",0],["Samudra terluas di dunia adalah?","Pasifik","Atlantik","Hindia",0],["Hewan terbesar di dunia adalah?","Paus biru","Gajah","Jerapah",0],["Jumlah sisi segitiga adalah?","3","4","5",0],["Alat untuk melihat benda yang sangat jauh?","Teleskop","Mikroskop","Kaca pembesar",0],["Kemerdekaan Indonesia diperingati tanggal?","17 Agustus","1 Januari","21 April",0]],
+8: [["Antonim dari 'Naik' adalah?","Turun","Maju","Tinggi",0],["Kalimat yang diakhiri tanda tanya disebut kalimat?","Tanya","Seru","Perintah",0],["Kata dasar dari 'membaca' adalah?","Baca","Mem","Bacaan",0],["Tanda baca di akhir kalimat berita adalah?","Titik","Koma","Seru",0],["Sinonim dari 'Pandai' adalah?","Pintar","Bodoh","Malas",0],["Huruf vokal adalah?","A I U E O","B C D F G","K L M N P",0],["Puisi tersusun dalam bentuk?","Bait dan larik","Percakapan","Tabel",0],["Arti kata 'gembira' adalah?","Senang","Sedih","Marah",0],["Judul karangan ditulis di bagian?","Atas","Bawah","Samping",0],["Penulisan yang baku adalah?","Apotek","Apotik","Apoteek",0]],
+9: [["Olahraga dengan ring dan bola besar adalah?","Basket","Tenis","Golf",0],["Jumlah pemain bola voli satu tim di lapangan?","6","5","11",0],["Olahraga memakai perahu dan dayung disebut?","Dayung","Panahan","Anggar",0],["Gerakan setelah olahraga untuk menenangkan tubuh?","Pendinginan","Pemanasan","Pembakaran",0],["Tenis meja juga dikenal dengan nama?","Ping pong","Squash","Hoki",0],["Zat gizi pembangun otot adalah?","Protein","Garam","Gula",0],["Lari estafet dilakukan secara?","Beregu","Sendiri","Berpasangan",0],["Tidur cukup membuat tubuh menjadi?","Segar","Lemas","Sakit",0],["Olahraga renang dilakukan di?","Kolam","Lapangan","Sawah",0],["Tinju, karate, dan taekwondo termasuk olahraga?","Bela diri","Air","Permainan bola",0]],
+10: [["Rumah adat Minangkabau disebut?","Rumah Gadang","Joglo","Honai",0],["Tari Kecak berasal dari?","Bali","Aceh","Papua",0],["Alat musik Kolintang berasal dari?","Minahasa","Jawa","Aceh",0],["Pakaian adat perempuan Jawa disebut?","Kebaya","Koteka","Ulos",0],["Kain tenun khas Batak adalah?","Ulos","Songket","Batik",0],["Senjata tradisional Jawa Barat adalah?","Kujang","Rencong","Mandau",0],["Tari Piring berasal dari?","Sumatra Barat","Bali","Jawa Timur",0],["Rumah adat Papua disebut?","Honai","Tongkonan","Gadang",0],["Seni ukir terkenal dari Jepara memakai bahan?","Kayu","Besi","Kaca",0],["Reog Ponorogo berasal dari?","Jawa Timur","Bali","Aceh",0]],
+11: [["Mengucapkan terima kasih saat ditolong adalah sikap?","Terpuji","Tercela","Sombong",0],["Membuang sampah pada tempatnya termasuk perilaku?","Disiplin","Malas","Boros",0],["Rukun Islam berjumlah?","5","6","7",0],["Menghargai pendapat teman disebut?","Toleransi","Egois","Iri",0],["Jika berbuat salah, sebaiknya kita?","Meminta maaf","Menyalahkan orang","Berbohong",0],["Berbagi dengan teman yang membutuhkan disebut?","Dermawan","Pelit","Serakah",0],["Sila pertama Pancasila adalah?","Ketuhanan Yang Maha Esa","Persatuan Indonesia","Keadilan sosial",0],["Datang tepat waktu menunjukkan sikap?","Disiplin","Malas","Acuh",0],["Menyontek saat ujian adalah perbuatan?","Tidak jujur","Rajin","Terpuji",0],["Membantu orang tua di rumah adalah bentuk?","Bakti","Malas","Boros",0]],
+12: [["Planet terbesar kedua di tata surya adalah?","Saturnus","Jupiter","Mars",0],["Benda langit yang bercahaya sendiri adalah?","Bintang","Planet","Bulan",0],["Jumlah planet dalam tata surya adalah?","8","9","7",0],["Gerhana matahari terjadi saat bulan berada di antara matahari dan?","Bumi","Mars","Venus",0],["Planet terjauh dari matahari adalah?","Neptunus","Venus","Merkurius",0],["Satu kali bumi mengelilingi matahari disebut?","Revolusi","Rotasi","Erosi",0],["Lubang hitam memiliki gravitasi yang sangat?","Kuat","Lemah","Nol",0],["Misi Apollo membawa manusia ke?","Bulan","Mars","Jupiter",0],["Siang dan malam terjadi karena bumi?","Berotasi","Berevolusi","Berhenti",0],["Ilmu yang mempelajari benda langit disebut?","Astronomi","Geologi","Biologi",0]],
+13: [["Menukar barang dengan barang disebut?","Barter","Investasi","Pajak",0],["Orang yang membeli barang disebut?","Konsumen","Produsen","Distributor",0],["Kenaikan harga terus-menerus disebut?","Inflasi","Deflasi","Resesi",0],["Tempat jual beli secara online disebut?","Marketplace","Terminal","Stasiun",0],["Uang yang ditabung di bank akan mendapat?","Bunga","Denda","Pajak",0],["Kebutuhan pokok sehari-hari disebut kebutuhan?","Primer","Tersier","Sekunder",0],["Uang yang dipakai untuk memulai usaha disebut?","Modal","Laba","Untung",0],["Jika pendapatan lebih kecil dari biaya, usaha akan?","Rugi","Untung","Impas",0],["Orang yang membuat barang disebut?","Produsen","Konsumen","Kasir",0],["Sebelum berbelanja sebaiknya kita membuat?","Daftar belanja","Utang","Hadiah",0]],
+14: [["Pola 5, 10, 15, 20, ... berikutnya?","25","30","22",0],["Segi empat memiliki berapa sisi?","4","3","5",0],["Apa yang makin diambil makin besar?","Lubang","Air","Pasir",0],["3 apel dibagi sama rata ke 3 anak, tiap anak dapat?","1","2","3",0],["Hari sebelum Rabu adalah?","Selasa","Kamis","Senin",0],["Hewan apa yang punya belalai?","Gajah","Kuda","Sapi",0],["Pola 1, 3, 5, 7, ... berikutnya?","9","8","10",0],["Bulan yang punya 28 hari di tahun biasa?","Februari","Januari","Maret",0],["Satu jam sama dengan berapa menit?","60","30","100",0],["Kakak lahir lebih dulu dari adik. Siapa yang lebih tua?","Kakak","Adik","Sama",0]],
+15: [["Mendaur ulang sampah dalam bahasa Inggris disebut?","Recycle","Reduce","Remove",0],["Hutan bakau melindungi pantai dari?","Abrasi","Gempa","Salju",0],["Salah satu penyebab banjir adalah?","Membuang sampah ke sungai","Menanam pohon","Hemat air",0],["Orangutan hidup di pulau?","Kalimantan dan Sumatra","Bali","Madura",0],["Tas belanja kain mengurangi?","Sampah plastik","Oksigen","Pohon",0],["Contoh sampah organik adalah?","Sisa sayuran","Botol plastik","Kaleng",0],["Lapisan yang melindungi bumi dari sinar UV adalah?","Ozon","Awan","Tanah",0],["Mematikan keran saat tidak dipakai berarti?","Menghemat air","Membuang air","Mengotori air",0],["Kompos dibuat dari?","Sampah organik","Plastik","Kaca",0],["Hari Bumi diperingati setiap bulan?","April","Agustus","Desember",0]],
+16: [["Vitamin yang didapat dari sinar matahari pagi?","Vitamin D","Vitamin C","Vitamin B",0],["Mineral untuk tulang dan gigi kuat adalah?","Kalsium","Garam","Besi",0],["Kekurangan vitamin C dapat menyebabkan?","Sariawan","Flu","Cacar",0],["Mandi sebaiknya dilakukan minimal?","2 kali sehari","Seminggu sekali","Sebulan sekali",0],["Makanan sumber protein adalah?","Telur","Permen","Soda",0],["Pelindung kepala saat naik motor adalah?","Helm","Topi","Syal",0],["Darah dipompa ke seluruh tubuh oleh?","Jantung","Lambung","Otak",0],["Sikat gigi sebaiknya diganti setiap?","3 bulan","10 tahun","1 hari",0],["Makan buah dan sayur membuat tubuh?","Sehat","Sakit","Lemah",0],["Tulang yang melindungi otak adalah?","Tengkorak","Rusuk","Paha",0]],
+17: [["Penemu mesin cetak modern adalah?","Johannes Gutenberg","Edison","Newton",0],["Penemu radio dikenal sebagai?","Marconi","Tesla","Watt",0],["Albert Einstein terkenal dengan teori?","Relativitas","Evolusi","Gravitasi",0],["Penemu teori evolusi adalah?","Charles Darwin","Newton","Galileo",0],["Penemu bola lampu listrik yang praktis adalah?","Edison","Bell","Marconi",0],["Marie Curie terkenal meneliti?","Radioaktivitas","Gravitasi","Listrik",0],["Penemu komputer mekanik awal adalah?","Charles Babbage","Thomas Edison","Alexander Bell",0],["Penemu World Wide Web adalah?","Tim Berners-Lee","Bill Gates","Steve Jobs",0],["Penemu vaksin cacar adalah?","Edward Jenner","Pasteur","Fleming",0],["Penemu pasteurisasi dan vaksin rabies adalah?","Louis Pasteur","Newton","Tesla",0]],
+18: [["Cerita Sangkuriang berasal dari daerah?","Jawa Barat","Bali","Aceh",0],["Cerita Jaka Tarub mengisahkan seorang pemuda dan?","Bidadari","Raksasa","Nelayan",0],["Kisah Ande-Ande Lumut berasal dari?","Jawa Timur","Aceh","Papua",0],["Cerita Si Kancil biasanya mengajarkan?","Kecerdikan","Kemalasan","Kekerasan",0],["Dongeng Putri Mandalika berasal dari?","Lombok","Sumatra","Jawa",0],["Tokoh Punakawan dalam wayang adalah?","Semar","Rama","Rahwana",0],["Epos Ramayana ditulis oleh?","Walmiki","Homer","Aesop",0],["Tokoh jahat dalam Ramayana adalah?","Rahwana","Hanoman","Sinta",0],["Legenda Danau Toba berkaitan dengan?","Toba dan Samosir","Roro Anteng","Si Pitung",0],["Tokoh wayang pemanah ulung yang tampan adalah?","Arjuna","Bima","Semar",0]],
+19: [["Alat musik bertuts hitam putih adalah?","Piano","Seruling","Gendang",0],["Lagu kebangsaan Indonesia adalah?","Indonesia Raya","Padamu Negeri","Garuda Pancasila",0],["Alat musik bambu Jawa Barat yang digoyang?","Angklung","Tifa","Sasando",0],["Orang yang bernyanyi disebut?","Penyanyi","Dalang","Pelukis",0],["Kendang dimainkan dengan cara?","Dipukul","Ditiup","Dipetik",0],["Lagu 'Bagimu Negeri' diciptakan oleh?","Kusbini","W.R. Supratman","Ibu Sud",0],["Ketukan teratur dalam musik disebut?","Ritme","Warna","Judul",0],["Alat musik tiup dari logam adalah?","Terompet","Rebana","Kolintang",0],["Kelompok orang bernyanyi bersama disebut?","Paduan suara","Solo","Duet",0],["Alat musik gesek adalah?","Biola","Seruling","Gitar",0]],
+20: [["Kumpulan perintah yang dijalankan komputer disebut?","Program","Kabel","Layar",0],["Tipe data untuk teks adalah?","String","Integer","Boolean",0],["Tipe data benar atau salah adalah?","Boolean","String","Float",0],["Mencari dan memperbaiki bug disebut?","Debugging","Compiling","Printing",0],["Bahasa untuk mempercantik tampilan web adalah?","CSS","SQL","Java",0],["Kumpulan data berurutan dalam satu variabel disebut?","Array","Loop","Bug",0],["Blok kode yang bisa dipakai berulang disebut?","Fungsi","Monitor","Mouse",0],["Hasil dari 2 + 2 dalam kode adalah?","4","22","2",0],["Komentar dalam kode berguna untuk?","Catatan penjelasan","Menghapus program","Mematikan komputer",0],["Sistem angka 0 dan 1 disebut?","Biner","Desimal","Romawi",0]]
+};
+themesData.forEach(t => (MORE[t.id] || []).forEach(([q, a, b, c, k]) => t.questions.push({ q, options: [a, b, c], correct: k })));
+
+        // --- STATE ---
+        let selectedTheme = themesData[0];
+        let currentStage = 1;
+        const totalStages = 10;
+        let coins = 0, lives = 3, gameTimer = 0;
+        let timerInterval = null;
+        let isGameStarted = false;
+        let roomCode = "";
+        let isAudioOn = false;
+        let isPaused = false;
+        let notifTimer = null;
+        let quizDelayTimer = null;
+        let stagePlatforms = [];
+        let standingOn = null;
+        let frameT = 0;
+        let levelT0 = 0;
+        let questionOrder = [];
+        const QUIZ_DELAY = 300;
+        let dirLight = null;
+        const FEET = 0.4;
+        const PLAYER_R = 0.3;
+
+        let scene, camera, renderer, player, platforms = [], coinsMesh = [], clouds = [];
+        let keys = { forward: false, backward: false, left: false, right: false };
+        let playerVelocity = new THREE.Vector3();
+        let isGrounded = false;
+        let currentQuestionObj = null;
+
+        // mode balapan (null = main sendiri)
+        let race = null; // { slot, n, seed, ranks:[], finished }
+        const lobby = { players: [], themeId: 1, state: 'lobby', racing: new Set(), left: 0 };
+
+        function resetKeys() { keys.forward = keys.backward = keys.left = keys.right = false; }
+        window.addEventListener('blur', resetKeys);
+
+        const PACKS = [0xf97316, 0x2563eb, 0x16a34a, 0x9333ea, 0xec4899, 0xeab308, 0x0ea5e9, 0x14b8a6];
+        const myPack = PACKS[Math.floor(Math.random() * PACKS.length)];
+
+        // --- LAYAR ---
+        function showScreen(s) {
+            document.getElementById('mainMenu').classList.toggle('hidden', s !== 'menu');
+            document.getElementById('lobbyScreen').classList.toggle('hidden', s !== 'lobby');
+            document.getElementById('hudHeader').classList.toggle('hidden', s !== 'game');
+            document.getElementById('touchControls').classList.toggle('hidden', s !== 'game');
+        }
+
+        function buildCharacter(packColor) {
+            const root = new THREE.Group();
+            const mk = (w, h, d, color, x, y, z, parent) => {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+                m.position.set(x, y, z); m.castShadow = true; (parent || root).add(m); return m;
+            };
+            const SKIN = 0xf5c6a0, WHITE = 0xffffff, RED = 0xdc2626, BLACK = 0x111111;
+            mk(0.6, 0.6, 0.6, SKIN, 0, 1.1, 0);
+            mk(0.64, 0.14, 0.64, BLACK, 0, 1.33, 0);
+            mk(0.64, 0.4, 0.1, BLACK, 0, 1.2, -0.27);
+            mk(0.66, 0.1, 0.66, RED, 0, 1.45, 0);
+            mk(0.5, 0.04, 0.22, RED, 0, 1.41, 0.4);
+            mk(0.08, 0.1, 0.02, BLACK, -0.13, 1.12, 0.305);
+            mk(0.08, 0.1, 0.02, BLACK, 0.13, 1.12, 0.305);
+            mk(0.16, 0.04, 0.02, 0x9a3412, 0, 0.94, 0.305);
+            mk(0.1, 0.06, 0.02, 0xf9a8d4, -0.22, 1.0, 0.305);
+            mk(0.1, 0.06, 0.02, 0xf9a8d4, 0.22, 1.0, 0.305);
+            mk(0.7, 0.5, 0.4, WHITE, 0, 0.65, 0);
+            mk(0.12, 0.3, 0.02, RED, 0, 0.7, 0.21);
+            mk(0.7, 0.3, 0.4, RED, 0, 0.25, 0);
+            mk(0.5, 0.55, 0.2, packColor, 0, 0.65, -0.3);
+            mk(0.3, 0.2, 0.04, new THREE.Color(packColor).multiplyScalar(0.8).getHex(), 0, 0.55, -0.41);
+            const makeLeg = (x) => {
+                const g = new THREE.Group(); g.position.set(x, 0.2, 0);
+                mk(0.28, 0.3, 0.36, SKIN, 0, -0.15, 0, g);
+                mk(0.28, 0.2, 0.36, WHITE, 0, -0.4, 0, g);
+                mk(0.3, 0.1, 0.46, BLACK, 0, -0.55, 0.05, g);
+                root.add(g); return g;
+            };
+            const makeArm = (x) => {
+                const g = new THREE.Group(); g.position.set(x, 0.9, 0);
+                mk(0.2, 0.25, 0.26, WHITE, 0, -0.125, 0, g);
+                mk(0.18, 0.3, 0.22, SKIN, 0, -0.4, 0, g);
+                root.add(g); return g;
+            };
+            root.userData.legL = makeLeg(-0.18);
+            root.userData.legR = makeLeg(0.18);
+            root.userData.armL = makeArm(-0.46);
+            root.userData.armR = makeArm(0.46);
+            return root;
+        }
+
+        function initThreeJS() {
+            const canvas = document.getElementById('gameCanvas');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x38bdf8);
+            scene.fog = new THREE.FogExp2(0x38bdf8, 0.015);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.castShadow = true;
+            Object.assign(dirLight.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, far: 150 });
+            scene.add(dirLight, dirLight.target);
+            player = buildCharacter(myPack);
+            scene.add(player);
+            setupControls();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function renderThemesGrid(gridId = 'themesGrid', onPick = startGameWithTheme) {
+            const grid = document.getElementById(gridId);
+            grid.innerHTML = '';
+            themesData.forEach(theme => {
+                const card = document.createElement('div');
+                card.className = `${theme.color} text-white p-4 rounded-2xl shadow-lg cursor-pointer transform hover:scale-105 transition btn-roblox flex flex-col items-center text-center justify-center gap-2 border-2 border-white/30`;
+                card.innerHTML = `<i class="fa-solid ${theme.icon} text-3xl mb-1"></i>
+                    <span class="font-bold text-sm md:text-base">${theme.name}</span>
+                    <span class="text-xs bg-black/20 px-2 py-0.5 rounded-full">10 Tahap</span>`;
+                card.onclick = () => onPick(theme);
+                grid.appendChild(card);
+            });
+        }
+
+        function hashStr(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+        function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+        const PALETTE = [0xfbbf24, 0xf472b6, 0x34d399, 0x60a5fa, 0xfb923c, 0xa3e635];
+
+        function makePlatform(o) {
+            const mat = new THREE.MeshLambertMaterial({ color: o.color });
+            let mesh, halfX, halfZ, radius = 0;
+            if (o.type === 'round') {
+                radius = o.w / 2; halfX = halfZ = radius;
+                mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.6, 32), mat);
+            } else {
+                halfX = o.w / 2; halfZ = o.d / 2;
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(o.w, 0.6, o.d), mat);
+            }
+            mesh.position.set(o.x, o.y, o.z);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            mesh.userData = {
+                type: o.type, halfX, halfZ, radius, halfH: 0.3,
+                stage: o.stage || 0, answered: o.stage === 1,
+                baseX: o.x, baseY: o.y, amp: o.amp || 0, speed: o.speed || 0, phase: o.phase || 0,
+                dx: 0, state: 0, timer: 0
+            };
+            scene.add(mesh);
+            platforms.push(mesh);
+            return mesh;
+        }
+
+        function addCoin(plat) {
+            const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16), new THREE.MeshLambertMaterial({ color: 0xfacc15 }));
+            coin.rotation.x = Math.PI / 2;
+            coin.userData.plat = plat;
+            coin.position.set(plat.position.x, plat.position.y + 1.0, plat.position.z);
+            scene.add(coin);
+            coinsMesh.push(coin);
+        }
+
+        // posisi start 4 pemain berjajar di checkpoint besar
+        function slotX() { return race ? (race.slot - (race.n - 1) / 2) * 2 : 0; }
+
+        function setupLevel(theme) {
+            platforms.forEach(p => scene.remove(p));
+            coinsMesh.forEach(c => scene.remove(c));
+            clouds.forEach(c => scene.remove(c));
+            platforms = []; coinsMesh = []; clouds = []; stagePlatforms = [];
+            standingOn = null; frameT = 0; levelT0 = performance.now();
+            clearTimeout(quizDelayTimer);
+            isPaused = false; resetKeys();
+            currentStage = 1; coins = 0; lives = race ? 5 : 3; gameTimer = 0;
+            document.getElementById('hudTimer').innerText = '0s';
+            updateHUD();
+
+            // mode balapan: balok lebih besar & jarak lebih lebar agar muat 4 orang
+            const big = !!race;
+            const CP = big ? 8 : 3.5, STEP = big ? 7.5 : 4.5, K = big ? 1.9 : 1, XM = big ? 10 : 8;
+            const rng = big ? mulberry32(race.seed) : Math.random; // semua pemain dapat level identik
+            const rnd = (a, b) => a + rng() * (b - a);
+            const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+            // urutan soal diacak; di mode balapan memakai seed yang sama sehingga semua pemain dapat soal identik
+            const qr = big ? mulberry32((race.seed ^ 0x5bd1e995) >>> 0) : Math.random;
+            questionOrder = theme.questions.map((_, i) => i);
+            for (let i = questionOrder.length - 1; i > 0; i--) { const j = Math.floor(qr() * (i + 1)); [questionOrder[i], questionOrder[j]] = [questionOrder[j], questionOrder[i]]; }
+            let x = 0, y = 0, z = -6;
+
+            for (let i = 0; i < totalStages; i++) {
+                const isLast = i === totalStages - 1;
+                const sp = makePlatform({ type: 'static', x, y, z, w: CP, d: CP, color: isLast ? 0x10b981 : 0xffffff, stage: i + 1 });
+                const pad = new THREE.Mesh(new THREE.BoxGeometry(CP * 0.68, 0.04, CP * 0.68), new THREE.MeshLambertMaterial({ color: isLast ? 0x047857 : 0xfacc15 }));
+                pad.position.y = 0.31; sp.add(pad);
+                stagePlatforms.push(sp);
+
+                if (isLast) {
+                    const pole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+                    pole.position.set(CP * 0.34, 1.55, 0); sp.add(pole);
+                    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.05), new THREE.MeshLambertMaterial({ color: 0xdc2626 }));
+                    flag.position.set(CP * 0.47, 2.55, 0); sp.add(flag);
+                    break;
+                }
+
+                for (let k = 0; k < 3; k++) {
+                    z -= STEP; y += 0.5;
+                    x = Math.max(-XM, Math.min(XM, x + rnd(-1.5, 1.5) * (big ? 1.5 : 1)));
+                    if (k === 2) break;
+                    const type = pick(k === 0 ? ['static', 'round', 'moving'] : ['moving', 'crumble', 'round', 'static']);
+                    let plat;
+                    if (type === 'static') plat = makePlatform({ type, x, y, z, w: rnd(1.8, 2.6) * K, d: rnd(1.8, 2.6) * K, color: pick(PALETTE) });
+                    else if (type === 'round') plat = makePlatform({ type, x, y, z, w: rnd(2.2, 2.6) * K, color: pick(PALETTE) });
+                    else if (type === 'moving') plat = makePlatform({ type, x, y, z, w: 2.2 * K, d: 2.2 * K, color: 0xa855f7, amp: big ? 2.6 : 1.8, speed: rnd(0.018, 0.028), phase: rnd(0, 6.28) });
+                    else plat = makePlatform({ type, x, y, z, w: 2.2 * K, d: 2.2 * K, color: 0xb45309 });
+                    addCoin(plat);
+                }
+            }
+
+            const f = stagePlatforms[0];
+            player.position.set(f.position.x + slotX(), f.position.y + 0.3 + FEET, f.position.z);
+            player.rotation.y = Math.PI;
+            playerVelocity.set(0, 0, 0);
+            isGrounded = true;
+
+            for (let i = 0; i < 24; i++) {
+                const cloud = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 4), new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }));
+                const side = rng() < 0.5 ? -1 : 1;
+                cloud.position.set(side * (14 + rng() * 25), rnd(-10, 16), -rng() * (big ? 260 : 140) + 10);
+                scene.add(cloud);
+                clouds.push(cloud);
+            }
+        }
+
+        async function startGameWithTheme(theme) {
+            selectedTheme = theme;
+            ['gameOverModal', 'winModal', 'raceModal'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            showScreen('game');
+            document.getElementById('hudThemeName').innerText = theme.name;
+            document.getElementById('roomBadge').classList.toggle('hidden', !race);
+            setupLevel(theme);
+            isGameStarted = true;
+            clearInterval(timerInterval);
+            const go = () => {
+                isPaused = false;
+                timerInterval = setInterval(() => {
+                    if (isGameStarted && !(race && race.finished)) { gameTimer++; document.getElementById('hudTimer').innerText = gameTimer + 's'; }
+                }, 1000);
+            };
+            if (race) { isPaused = true; countdown(go); } else go();
+            if (isAudioOn) { try { await Tone.start(); playBGM(); } catch (e) { console.log(e); } }
+        }
+
+        function countdown(cb) {
+            const el = document.getElementById('countdown'), n = document.getElementById('countNum');
+            const seq = ['3', '2', '1', 'GO!']; let i = 0;
+            el.classList.remove('hidden');
+            const step = () => {
+                if (!isGameStarted || !race || i >= seq.length) { el.classList.add('hidden'); return; }
+                n.innerText = seq[i];
+                if (seq[i] === 'GO!') cb();
+                i++; setTimeout(step, 800);
+            };
+            step();
+        }
+
+        function backToMenu() {
+            isGameStarted = false; race = null;
+            clearTimeout(quizDelayTimer); clearInterval(timerInterval);
+            isPaused = false; resetKeys();
+            ['quizModal', 'winModal', 'gameOverModal', 'raceModal', 'countdown'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            showScreen('menu');
+            try { stopBGM(); } catch (e) {}
+        }
+
+        function backToLobby() {
+            if (race && !race.finished && isGameStarted) { if (net.isHost) raceLeave(myId); netSend({ t: 'out', n: myNick }); }
+            isGameStarted = false; race = null;
+            clearTimeout(quizDelayTimer); clearInterval(timerInterval);
+            isPaused = false; resetKeys();
+            ['quizModal', 'raceModal', 'countdown'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            try { stopBGM(); } catch (e) {}
+            showScreen('lobby'); renderLobby();
+        }
+
+        function exitGame() { net.connected ? backToLobby() : backToMenu(); }
+
+        function updateHUD() {
+            document.getElementById('hudStage').innerText = `Tahap ${currentStage}/${totalStages}`;
+            document.getElementById('hudCoins').innerText = coins;
+            document.getElementById('hudLives').innerText = lives;
+        }
+
+        function setupControls() {
+            window.addEventListener('keydown', (e) => {
+                if (!isGameStarted) return;
+                if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
+                if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = true;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+                if (e.code === 'Space') { e.preventDefault(); jump(); }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = false;
+                if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = false;
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            });
+            const bindTouch = (id, keyName) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const on = (e) => { e.preventDefault(); keys[keyName] = true; };
+                const off = (e) => { e.preventDefault(); keys[keyName] = false; };
+                ['touchstart', 'mousedown'].forEach(ev => el.addEventListener(ev, on));
+                ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach(ev => el.addEventListener(ev, off));
+            };
+            bindTouch('btnUp', 'forward'); bindTouch('btnDown', 'backward');
+            bindTouch('btnLeft', 'left'); bindTouch('btnRight', 'right');
+            const btnJump = document.getElementById('btnJump');
+            if (btnJump) {
+                btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+                btnJump.addEventListener('click', (e) => { e.preventDefault(); jump(); });
+            }
+        }
+
+        function jump() {
+            if (!isGameStarted || isPaused) return;
+            if (isGrounded) { playerVelocity.y = 0.22; isGrounded = false; }
+        }
+
+        // --- MULTIPLAYER (PeerJS / WebRTC) ---
+        // Host = pembuat room (ID peer 'obbypintar-<kode>'), meneruskan pesan ke pemain lain. Maks 4 pemain.
+        const net = { peer: null, isHost: false, conns: [], hostConn: null, connected: false };
+        const myId = Math.random().toString(36).slice(2, 9);
+        const MAX_PLAYERS = 4;
+        const remotes = {};
+        let myNick = '';
+        let lastSend = 0, lastPanel = 0;
+
+        function esc(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+        function refreshNick() {
+            const v = document.getElementById('inputName').value.trim().slice(0, 12);
+            if (v) myNick = v;
+            else if (!myNick) myNick = 'Pemain' + Math.floor(10 + Math.random() * 90);
+            return myNick;
+        }
+
+        function makeLabel(text) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+            const x = c.getContext('2d');
+            x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+            x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,0.8)'; x.strokeText(text, 128, 32);
+            x.fillStyle = '#ffffff'; x.fillText(text, 128, 32);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false }));
+            sp.scale.set(2.4, 0.6, 1); sp.renderOrder = 10;
+            return sp;
+        }
+
+        function sendAll(m) { net.conns.forEach(c => { if (c.open) c.send(m); }); }
+
+        function netSend(msg) {
+            if (!net.peer || !net.connected) return;
+            msg.id = myId;
+            if (net.isHost) sendAll(msg);
+            else if (net.hostConn && net.hostConn.open) net.hostConn.send(msg);
+        }
+
+        function onNetData(d, from) {
+            if (!d || !d.t) return;
+            if (from) {
+                from.playerId = d.id;
+                if (d.t === 's' || d.t === 'bye' || d.t === 'out') net.conns.forEach(c => { if (c !== from && c.open) c.send(d); });
+            }
+            handleNet(d);
+        }
+
+        function handleNet(d) {
+            if (d.id === myId) return;
+            switch (d.t) {
+            case 'hello':
+                if (net.isHost && !lobby.players.some(p => p.id === d.id) && lobby.players.length < MAX_PLAYERS) {
+                    lobby.players.push({ id: d.id, n: d.n, c: d.c }); broadcastLobby();
+                }
+                break;
+            case 'lobby': lobby.players = d.players; lobby.themeId = d.th; lobby.state = d.st; lobby.left = d.left; renderLobby(); break;
+            case 'out': showNotification(`${d.n} kehabisan nyawa / keluar dari balapan 💔`); if (net.isHost) raceLeave(d.id); break;
+            case 'start': startRace(d); break;
+            case 'fin': if (net.isHost) assignRank(d.id, d.n, d.time); break;
+            case 'rank': handleRank(d); break;
+            case 's': {
+                let r = remotes[d.id];
+                if (!r) {
+                    const g = buildCharacter(d.c || 0xf97316);
+                    const label = makeLabel(d.n || 'Pemain'); label.position.y = 2.0; g.add(label);
+                    g.position.set(d.x, d.y, d.z); scene.add(g);
+                    r = remotes[d.id] = { group: g, info: d, tx: d.x, ty: d.y, tz: d.z, tr: d.r, seen: performance.now(), walkT: 0 };
+                }
+                r.info = d; r.tx = d.x; r.ty = d.y; r.tz = d.z; r.tr = d.r; r.seen = performance.now();
+                break;
+            }
+            case 'bye':
+                removeRemote(d.id);
+                if (net.isHost) hostDrop(d.id);
+                break;
+            }
+        }
+
+        function removeRemote(id) {
+            const r = remotes[id];
+            if (r) { scene.remove(r.group); delete remotes[id]; }
+            updateRoomUI();
+        }
+
+        function hostDrop(id) {
+            const n = lobby.players.length;
+            lobby.racing.delete(id); if (lobby.state === 'racing' && lobby.racing.size === 0) lobby.state = 'lobby';
+            lobby.players = lobby.players.filter(p => p.id !== id);
+            if (lobby.players.length !== n) broadcastLobby();
+        }
+
+        function broadcastLobby() {
+            lobby.left = lobby.racing.size;
+            sendAll({ t: 'lobby', id: myId, players: lobby.players, th: lobby.themeId, st: lobby.state, left: lobby.left });
+            renderLobby();
+        }
+
+        function updateRoomUI() { if (net.connected) renderLobby(); }
+
+        function renderLobby() {
+            document.getElementById('lobbyCode').innerText = roomCode;
+            const slots = document.getElementById('lobbySlots');
+            slots.innerHTML = '';
+            for (let i = 0; i < MAX_PLAYERS; i++) {
+                const p = lobby.players[i];
+                slots.innerHTML += p
+                    ? `<div class="bg-white/90 rounded-2xl p-3 text-center font-bold text-slate-800 border-4 ${p.id === myId ? 'border-emerald-400' : 'border-white'}">
+                         <div class="w-10 h-10 rounded-full mx-auto mb-1" style="background:#${(p.c || 0).toString(16).padStart(6, '0')}"></div>
+                         ${esc(p.n)}${p.id === myId ? ' (kamu)' : ''}${i === 0 ? '<div class="text-xs text-amber-600">👑 Host</div>' : ''}</div>`
+                    : `<div class="bg-black/20 rounded-2xl p-3 text-center text-white/60 font-bold border-4 border-dashed border-white/30 flex items-center justify-center">Menunggu...</div>`;
+            }
+            const th = themesData.find(t => t.id === lobby.themeId) || themesData[0];
+            document.getElementById('lobbyTheme').innerText = th ? 'Game: ' + th.name : '';
+            document.getElementById('lobbyThemesWrap').classList.toggle('hidden', !net.isHost);
+            document.getElementById('btnStartRace').classList.toggle('hidden', !net.isHost);
+            const racing = lobby.state === 'racing';
+            const w = document.getElementById('lobbyWait');
+            w.classList.toggle('hidden', net.isHost && !racing);
+            w.innerText = racing ? `Balapan sedang berlangsung... menunggu ${lobby.left} pemain menyelesaikan permainan.` : 'Menunggu host memulai balapan...';
+            const bs = document.getElementById('btnStartRace'); bs.disabled = racing; bs.style.opacity = racing ? 0.5 : 1;
+            document.getElementById('netMode').innerText = net.local ? 'Mode lokal: hanya antar tab di browser yang sama' : 'Mode online: bisa antar perangkat berbeda';
+            [...document.getElementById('lobbyThemes').children].forEach((c, i) => {
+                const on = themesData[i] && themesData[i].id === lobby.themeId;
+                c.classList.toggle('ring-4', on); c.classList.toggle('ring-yellow-300', on);
+            });
+        }
+
+        function pickLobbyTheme(theme) {
+            if (!net.isHost) return;
+            lobby.themeId = theme.id; broadcastLobby();
+        }
+
+        function hostStart() {
+            if (!net.isHost) return;
+            if (lobby.players.length < 2) { showNotification('Minimal 2 pemain untuk balapan!'); return; }
+            if (lobby.state === 'racing') { showNotification('Balapan masih berlangsung.'); return; }
+            lobby.state = 'racing'; lobby.racing = new Set(lobby.players.map(p => p.id)); lobby.left = lobby.racing.size;
+            const m = { t: 'start', id: myId, th: lobby.themeId, seed: (Math.random() * 4294967295) >>> 0, slots: lobby.players.map(p => p.id) };
+            sendAll(m);
+            startRace(m);
+        }
+
+        function startRace(m) {
+            const theme = themesData.find(t => t.id === m.th);
+            if (!theme) return;
+            race = { slot: Math.max(0, m.slots.indexOf(myId)), n: m.slots.length, seed: m.seed, ranks: [], finished: false };
+            lobby.state = 'racing'; lobby.left = m.slots.length;
+            document.getElementById('raceModal').classList.add('hidden');
+            startGameWithTheme(theme);
+        }
+
+        // host menentukan urutan finish supaya semua pemain melihat hasil yang sama
+        function assignRank(pid, n, time) {
+            if (!race || race.ranks.some(r => r.pid === pid)) return;
+            const m = { t: 'rank', id: myId, pid, n, time, rank: race.ranks.length + 1 };
+            sendAll(m); handleRank(m); raceLeave(pid);
+        }
+
+        function handleRank(m) {
+            if (!race || race.ranks.some(r => r.pid === m.pid)) return;
+            race.ranks.push(m);
+            showNotification(m.rank === 1 ? `🏆 ${m.n} juara 1 dalam ${m.time}s!` : `${m.n} finish di posisi ${m.rank}`);
+            if (race.finished) showRaceModal();
+        }
+
+        function showRaceModal() {
+            const me = race.ranks.find(r => r.pid === myId);
+            document.getElementById('raceTitle').innerText = me ? (me.rank === 1 ? '🏆 JUARA 1!' : `Kamu finish ke-${me.rank}`) : 'Menunggu hasil...';
+            document.getElementById('rankList').innerHTML = race.ranks.map(r => `<div class="flex justify-between"><span>#${r.rank} ${esc(r.n)}</span><span>${r.time}s</span></div>`).join('');
+            document.getElementById('raceModal').classList.remove('hidden');
+        }
+
+        function finishRace() {
+            race.finished = true; isPaused = true; resetKeys(); clearInterval(timerInterval);
+            if (net.isHost) assignRank(myId, myNick, gameTimer);
+            else netSend({ t: 'fin', n: myNick, time: gameTimer });
+            showRaceModal();
+        }
+
+        function renderPlayersPanel() {
+            const panel = document.getElementById('playersPanel');
+            if (!net.connected || !isGameStarted) { panel.classList.add('hidden'); return; }
+            const rows = [{ n: myNick + ' (kamu)', st: currentStage, co: coins, me: true }];
+            for (const id in remotes) {
+                const i = remotes[id].info;
+                if (i.th > 0) rows.push({ n: i.n, st: i.st, co: i.co, same: i.th === selectedTheme.id });
+            }
+            rows.sort((a, b) => b.st - a.st || b.co - a.co);
+            panel.innerHTML = '<div class="text-yellow-300 mb-1"><i class="fa-solid fa-ranking-star"></i> Posisi Balapan</div>' +
+                rows.map(r => `<div class="flex justify-between gap-2 ${r.me ? 'text-emerald-300' : (r.same === false ? 'opacity-50' : '')}"><span class="truncate">${esc(r.n)}</span><span>T${r.st} • ${r.co}</span></div>`).join('');
+            panel.classList.remove('hidden');
+        }
+
+        function updateRemotes() {
+            const now = performance.now();
+            for (const id of Object.keys(remotes)) {
+                const r = remotes[id];
+                if (now - r.seen > 6000) { removeRemote(id); continue; }
+                const g = r.group;
+                g.visible = isGameStarted && r.info.th === selectedTheme.id;
+                const px = g.position.x, pz = g.position.z;
+                g.position.x += (r.tx - g.position.x) * 0.3;
+                g.position.y += (r.ty - g.position.y) * 0.3;
+                g.position.z += (r.tz - g.position.z) * 0.3;
+                const mv = Math.hypot(g.position.x - px, g.position.z - pz);
+                if (mv > 0.005) { g.rotation.y = r.tr; r.walkT += 0.25; }
+                const swing = mv > 0.005 ? Math.sin(r.walkT) * 0.7 : 0;
+                const u = g.userData;
+                u.legL.rotation.x += (swing - u.legL.rotation.x) * 0.3;
+                u.legR.rotation.x += (-swing - u.legR.rotation.x) * 0.3;
+                u.armL.rotation.x += (-swing - u.armL.rotation.x) * 0.3;
+                u.armR.rotation.x += (swing - u.armR.rotation.x) * 0.3;
+            }
+        }
+
+        function netTick() {
+            const now = performance.now();
+            if (net.connected && now - lastSend > 90) {
+                lastSend = now;
+                netSend({ t: 's', n: myNick, c: myPack, th: isGameStarted ? selectedTheme.id : 0,
+                    x: +player.position.x.toFixed(2), y: +player.position.y.toFixed(2), z: +player.position.z.toFixed(2),
+                    r: +player.rotation.y.toFixed(2), st: currentStage, co: coins });
+            }
+            updateRemotes();
+            if (now - lastPanel > 500) { lastPanel = now; renderPlayersPanel(); }
+        }
+
+        function leaveRoom(silent) {
+            const p = net.peer;
+            if (p && net.connected) { try { netSend({ t: 'bye' }); } catch (e) {} }
+            net.peer = null; net.isHost = false; net.conns = []; net.hostConn = null; net.connected = false;
+            if (p) { try { setTimeout(() => p.destroy(), 150); } catch (e) {} }
+            Object.keys(remotes).forEach(id => { scene.remove(remotes[id].group); delete remotes[id]; });
+            roomCode = ''; lobby.players = []; lobby.state = 'lobby'; lobby.racing = new Set(); lobby.left = 0;
+            document.getElementById('roomBadge').classList.add('hidden');
+            backToMenu();
+            if (!silent) showNotification('Kamu keluar dari room.');
+        }
+
+        function createRoom() {
+            leaveRoom(true);
+            refreshNick();
+            const code = 'OBBY' + Math.floor(100 + Math.random() * 900);
+            showNotification('Membuat room...');
+            const peer = makePeer('obbypintar-' + code.toLowerCase());
+            net.peer = peer; net.isHost = true;
+            setTimeout(() => { if (net.peer === peer && !net.connected) netFallback({ type: 'network' }, createRoom); }, 6000);
+
+            peer.on('open', () => {
+                if (net.peer !== peer) return;
+                roomCode = code; net.connected = true;
+                lobby.players = [{ id: myId, n: myNick, c: myPack }];
+                lobby.themeId = themesData[0] ? themesData[0].id : 1; lobby.state = 'lobby';
+                document.getElementById('inputRoomCode').value = code;
+                document.getElementById('hudRoomCode').innerText = code;
+                showScreen('lobby'); renderLobby();
+                showNotification(`Room ${code} dibuat! Bagikan kodenya ke teman.`);
+            });
+            peer.on('connection', (conn) => {
+                if (net.peer !== peer) return;
+                const full = net.conns.length >= MAX_PLAYERS - 1;
+                if (full || lobby.state === 'racing') {
+                    conn.on('open', () => { conn.send({ t: full ? 'full' : 'busy' }); setTimeout(() => conn.close(), 300); });
+                    return;
+                }
+                net.conns.push(conn);
+                conn.on('data', (d) => onNetData(d, conn));
+                conn.on('close', () => {
+                    net.conns = net.conns.filter(c => c !== conn);
+                    if (conn.playerId && net.peer === peer) {
+                        removeRemote(conn.playerId); hostDrop(conn.playerId);
+                        sendAll({ t: 'bye', id: conn.playerId });
+                    }
+                });
+                conn.on('error', () => {});
+            });
+            peer.on('error', (err) => {
+                if (net.peer !== peer) return;
+                if (netFallback(err, createRoom)) return;
+                if (err.type === 'unavailable-id') { leaveRoom(true); createRoom(); return; }
+                leaveRoom(true);
+                showNotification('Gagal membuat room: ' + err.type);
+            });
+        }
+
+        function joinRoom() {
+            const val = document.getElementById('inputRoomCode').value.trim().toUpperCase();
+            if (!val) { showNotification('Masukkan kode ruangan terlebih dahulu!'); return; }
+            leaveRoom(true);
+            refreshNick();
+            showNotification('Menghubungkan ke room...');
+            const peer = makePeer();
+            net.peer = peer; net.isHost = false;
+
+            peer.on('open', () => {
+                if (net.peer !== peer) return;
+                const conn = peer.connect('obbypintar-' + val.toLowerCase(), { reliable: true });
+                net.hostConn = conn;
+                const timeout = setTimeout(() => {
+                    if (net.peer === peer && !net.connected) { leaveRoom(true); showNotification('Gagal terhubung ke room. Coba lagi.'); }
+                }, 10000);
+                conn.on('open', () => {
+                    if (net.peer !== peer) return;
+                    clearTimeout(timeout);
+                    net.connected = true; roomCode = val;
+                    document.getElementById('hudRoomCode').innerText = val;
+                    conn.send({ t: 'hello', id: myId, n: myNick, c: myPack });
+                    showScreen('lobby'); renderLobby();
+                });
+                conn.on('data', (d) => {
+                    if (d && (d.t === 'full' || d.t === 'busy')) {
+                        leaveRoom(true);
+                        showNotification(d.t === 'full' ? 'Room penuh (maks 4 pemain).' : 'Balapan sudah dimulai, tunggu ronde berikutnya.');
+                        return;
+                    }
+                    onNetData(d, null);
+                });
+                conn.on('close', () => { if (net.peer === peer) { leaveRoom(true); showNotification('Room ditutup oleh host.'); } });
+            });
+            peer.on('error', (err) => {
+                if (net.peer !== peer) return;
+                if (netFallback(err, joinRoom)) return;
+                leaveRoom(true);
+                showNotification(err.type === 'peer-unavailable' ? 'Room tidak ditemukan. Cek kode ruangan.' : 'Koneksi gagal: ' + err.type);
+            });
+        }
+
+// --- TRANSPORT LOKAL (cadangan jika PeerJS/server online tidak bisa dipakai) ---
+// Bekerja antar tab di browser & perangkat yang sama (BroadcastChannel), meniru API PeerJS yang dipakai game ini.
+class LocalPeer {
+    constructor(id) {
+        this.id = id || ('l' + Math.random().toString(36).slice(2, 9));
+        this.h = {}; this.conns = {};
+        this.bc = new BroadcastChannel('obby-local');
+        this.bc.onmessage = (e) => this._m(e.data);
+        setTimeout(() => this._e('open', this.id), 50);
+    }
+    on(ev, f) { this.h[ev] = f; return this; }
+    _e(ev, ...a) { if (this.h[ev]) this.h[ev](...a); }
+    _mk(cid, remote) {
+        const c = { open: false, h: {}, peer: remote,
+            on(ev, f) { this.h[ev] = f; return this; },
+            send: (d) => this.bc.postMessage({ k: 'd', cid, to: remote, d: JSON.parse(JSON.stringify(d)) }),
+            close: () => { this.bc.postMessage({ k: 'x', cid, to: remote }); c.open = false; } };
+        this.conns[cid] = c; return c;
+    }
+    connect(target) {
+        const cid = Math.random().toString(36).slice(2);
+        const c = this._mk(cid, target);
+        c.t = setTimeout(() => { if (!c.open) this._e('error', { type: 'peer-unavailable' }); }, 2500);
+        this.bc.postMessage({ k: 'c', cid, from: this.id, to: target });
+        return c;
+    }
+    _m(m) {
+        if (m.to !== this.id) return;
+        const c = this.conns[m.cid];
+        if (m.k === 'c') {
+            const nc = this._mk(m.cid, m.from); nc.open = true;
+            this._e('connection', nc);
+            setTimeout(() => { if (nc.h.open) nc.h.open(); this.bc.postMessage({ k: 'a', cid: m.cid, to: m.from }); }, 0);
+        } else if (m.k === 'a' && c) { clearTimeout(c.t); c.open = true; if (c.h.open) c.h.open(); }
+        else if (m.k === 'd' && c && c.h.data) c.h.data(m.d);
+        else if (m.k === 'x' && c) { c.open = false; if (c.h.close) c.h.close(); }
+    }
+    destroy() { Object.values(this.conns).forEach(c => { try { c.close(); } catch (e) {} }); try { this.bc.close(); } catch (e) {} }
+}
+
+let PeerImpl = LocalPeer;   // diganti PeerJS asli kalau berhasil dimuat
+let forceLocal = false;
+const PEER_URLS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js',
+    'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
+    'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'
+];
+
+function loadPeer() {
+    return new Promise(res => {
+        let i = 0;
+        const next = () => {
+            if (typeof Peer !== 'undefined') { res(Peer); return; }
+            if (i >= PEER_URLS.length) { res(null); return; }
+            const s = document.createElement('script');
+            s.src = PEER_URLS[i++]; s.onload = next; s.onerror = next;
+            document.head.appendChild(s);
+        };
+        next();
+    });
+}
+
+function makePeer(id) {
+    if (PeerImpl !== LocalPeer && !forceLocal) {
+        net.local = false;
+        return new PeerImpl(id, { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } });
+    }
+    net.local = true;
+    return new LocalPeer(id);
+}
+
+// jika server online tidak terjangkau, otomatis pindah ke mode lokal lalu coba lagi
+function netFallback(err, retry) {
+    if (forceLocal || !['network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible'].includes(err.type)) return false;
+    forceLocal = true;
+    leaveRoom(true);
+    showNotification('Server online tidak terjangkau. Beralih ke mode lokal (antar tab browser yang sama).');
+    setTimeout(retry, 300);
+    return true;
+}
+
+// host: pemain keluar dari balapan (selesai / kalah / keluar). Balapan berakhir saat semua sudah keluar.
+function raceLeave(id) {
+    lobby.racing.delete(id);
+    if (lobby.state === 'racing' && lobby.racing.size === 0) lobby.state = 'lobby';
+    broadcastLobby();
+}
+
+function copyCode() {
+    if (navigator.clipboard) navigator.clipboard.writeText(roomCode).then(() => showNotification('Kode room disalin!')).catch(() => showNotification('Kode room: ' + roomCode));
+    else showNotification('Kode room: ' + roomCode);
+}
+
+        window.addEventListener('beforeunload', () => leaveRoom(true));
+
+        // --- KUIS ---
+        function scheduleQuiz(stageNum) {
+            isPaused = true;
+            resetKeys();
+            clearTimeout(quizDelayTimer);
+            quizDelayTimer = setTimeout(() => { if (isGameStarted) triggerQuiz(stageNum); }, QUIZ_DELAY);
+        }
+
+        function triggerQuiz(stageNum) {
+            isPaused = true;
+            resetKeys();
+            const qs = selectedTheme.questions;
+            const qi = questionOrder.length ? questionOrder[(stageNum - 2) % questionOrder.length] : (stageNum - 2) % qs.length;
+            const base = qs[qi];
+            const opts = base.options.map((t, i) => ({ t, ok: i === base.correct })).sort(() => Math.random() - 0.5);
+            currentQuestionObj = { q: base.q, options: opts.map(o => o.t), correct: opts.findIndex(o => o.ok) };
+
+            document.getElementById('quizStageBadge').innerText = `Tahap ${stageNum}`;
+            document.getElementById('quizThemeBadge').innerText = selectedTheme.name;
+            document.getElementById('quizQuestion').innerText = currentQuestionObj.q;
+
+            const optContainer = document.getElementById('quizOptions');
+            optContainer.innerHTML = '';
+            currentQuestionObj.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-900 font-bold p-3 rounded-2xl border-2 border-indigo-200 transition text-lg btn-roblox";
+                btn.innerText = opt;
+                btn.onclick = () => answerQuiz(idx);
+                optContainer.appendChild(btn);
+            });
+            document.getElementById('quizModal').classList.remove('hidden');
+        }
+
+        function answerQuiz(selectedIdx) {
+            document.getElementById('quizModal').classList.add('hidden');
+            isPaused = false;
+            if (selectedIdx === currentQuestionObj.correct) {
+                coins += 10;
+                currentStage++;
+                updateHUD();
+                showNotification('Jawaban Benar! +10 Koin & Naik Tahap!');
+                if (currentStage >= totalStages) {
+                    if (race) { finishRace(); return; }
+                    document.getElementById('winCoins').innerText = coins;
+                    document.getElementById('winTime').innerText = gameTimer + 's';
+                    document.getElementById('winModal').classList.remove('hidden');
+                    isGameStarted = false;
+                    clearInterval(timerInterval);
+                }
+            } else {
+                stagePlatforms[currentStage].userData.answered = false;
+                loseLife('Jawaban salah!');
+            }
+        }
+
+        function showNotification(msg) {
+            const box = document.getElementById('notificationBox');
+            box.innerText = msg;
+            box.classList.remove('hidden');
+            clearTimeout(notifTimer);
+            notifTimer = setTimeout(() => box.classList.add('hidden'), 3000);
+        }
+
+        // --- AUDIO ---
+        let synth = null;
+        let bgmLoop = null;
+
+        async function toggleAudio() {
+            isAudioOn = !isAudioOn;
+            document.getElementById('audioStatus').innerText = isAudioOn ? "Musik: ON" : "Musik: OFF";
+            if (isAudioOn) { await Tone.start(); playBGM(); showNotification('Musik Ceria diaktifkan!'); }
+            else { stopBGM(); showNotification('Musik dimatikan.'); }
+        }
+
+        function playBGM() {
+            if (!synth) {
+                synth = new Tone.Synth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 }
+                }).toDestination();
+            }
+            const notes = ["C4", "E4", "G4", "B4", "C5", "G4", "E4", "D4"];
+            let noteIdx = 0;
+            if (bgmLoop) bgmLoop.dispose();
+            bgmLoop = new Tone.Loop((time) => {
+                synth.triggerAttackRelease(notes[noteIdx], "8n", time);
+                noteIdx = (noteIdx + 1) % notes.length;
+            }, "4n").start(0);
+            if (Tone.Transport.state !== "started") Tone.Transport.start();
+        }
+
+        function stopBGM() {
+            if (bgmLoop) bgmLoop.stop();
+            if (Tone.Transport.state === "started") Tone.Transport.stop();
+        }
+
+        // --- FISIKA & GAME LOOP ---
+        function respawnAtCheckpoint() {
+            const p = stagePlatforms[currentStage - 1];
+            player.position.set(p.position.x + slotX(), p.position.y + 0.3 + FEET, p.position.z);
+            playerVelocity.set(0, 0, 0);
+            standingOn = null;
+            isGrounded = true;
+        }
+
+        function showGameOver() {
+            isGameStarted = false;
+            isPaused = false;
+            resetKeys();
+            clearTimeout(quizDelayTimer);
+            clearInterval(timerInterval);
+            document.getElementById('overStage').innerText = `${currentStage}/${totalStages}`;
+            document.getElementById('overCoins').innerText = coins;
+            document.getElementById('overTime').innerText = gameTimer + 's';
+            document.getElementById('gameOverModal').classList.remove('hidden');
+        }
+
+        function retryGame() {
+            document.getElementById('gameOverModal').classList.add('hidden');
+            startGameWithTheme(selectedTheme);
+        }
+
+        function loseLife(msg) {
+            if (race) { // mode balapan: 5 nyawa, kalau habis langsung kalah & kembali ke lobi
+                lives--; updateHUD();
+                if (lives <= 0) { backToLobby(); showNotification('Nyawamu habis, kamu kalah! Tunggu teman lain selesai di lobi.'); return; }
+                showNotification(msg + ` Sisa nyawa: ${lives}.`);
+                respawnAtCheckpoint();
+                return;
+            }
+            lives--;
+            updateHUD();
+            if (lives <= 0) showGameOver();
+            else { showNotification(msg + ' Kehilangan 1 nyawa.'); respawnAtCheckpoint(); }
+        }
+
+        let walkT = 0;
+        function animateWalk(moving) {
+            const u = player.userData;
+            if (moving && isGrounded) walkT += 0.25;
+            const swing = (moving && isGrounded) ? Math.sin(walkT) * 0.7 : 0;
+            const k = 0.3;
+            u.legL.rotation.x += (swing - u.legL.rotation.x) * k;
+            u.legR.rotation.x += (-swing - u.legR.rotation.x) * k;
+            u.armL.rotation.x += (-swing - u.armL.rotation.x) * k;
+            u.armR.rotation.x += (swing - u.armR.rotation.x) * k;
+        }
+
+        // balok bergerak (berbasis waktu, jadi sinkron antar pemain) & balok rapuh
+        function updatePlatforms() {
+            frameT++;
+            const tt = (performance.now() - levelT0) / 16.67;
+            for (const p of platforms) {
+                const u = p.userData;
+                if (u.type === 'moving') {
+                    const nx = u.baseX + Math.sin(tt * u.speed + u.phase) * u.amp;
+                    u.dx = nx - p.position.x;
+                    p.position.x = nx;
+                } else if (u.type === 'crumble') {
+                    if (u.state === 1) {
+                        u.timer--;
+                        p.position.x = u.baseX + (Math.random() - 0.5) * 0.08;
+                        p.material.color.setHex(0xef4444);
+                        if (u.timer <= 0) u.state = 2;
+                    } else if (u.state === 2) {
+                        p.position.y -= 0.12;
+                        if (p.position.y < u.baseY - 10) { p.visible = false; u.state = 3; u.timer = 180; }
+                    } else if (u.state === 3) {
+                        u.timer--;
+                        if (u.timer <= 0) {
+                            p.position.set(u.baseX, u.baseY, p.position.z);
+                            p.material.color.setHex(0xb45309);
+                            p.visible = true; u.state = 0;
+                        }
+                    }
+                }
+            }
+        }
+
+        function updatePlayer() {
+            if (standingOn && standingOn.userData.dx) player.position.x += standingOn.userData.dx;
+
+            let dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+            let dz = (keys.backward ? 1 : 0) - (keys.forward ? 1 : 0);
+            if (dx || dz) {
+                const len = Math.hypot(dx, dz);
+                dx = dx / len * 0.12; dz = dz / len * 0.12;
+                player.position.x += dx; player.position.z += dz;
+                player.rotation.y = Math.atan2(dx, dz);
+            }
+            animateWalk(!!(dx || dz));
+
+            const prevFeet = player.position.y - FEET;
+            playerVelocity.y -= 0.012;
+            player.position.y += playerVelocity.y;
+            const feet = player.position.y - FEET;
+
+            let landed = false;
+            standingOn = null;
+            if (playerVelocity.y <= 0) {
+                for (const plat of platforms) {
+                    const u = plat.userData;
+                    if (!plat.visible || (u.type === 'crumble' && u.state >= 2)) continue;
+                    const top = plat.position.y + u.halfH;
+                    const ddx = player.position.x - plat.position.x;
+                    const ddz = player.position.z - plat.position.z;
+                    const inside = u.radius
+                        ? (ddx * ddx + ddz * ddz) < (u.radius + PLAYER_R) * (u.radius + PLAYER_R)
+                        : (Math.abs(ddx) < u.halfX + PLAYER_R && Math.abs(ddz) < u.halfZ + PLAYER_R);
+                    if (inside && prevFeet >= top - 0.01 && feet <= top) {
+                        player.position.y = top + FEET;
+                        playerVelocity.y = 0;
+                        landed = true;
+                        standingOn = plat;
+                        if (u.type === 'crumble' && u.state === 0) { u.state = 1; u.timer = 45; }
+                        if (u.stage === currentStage + 1 && !u.answered) {
+                            u.answered = true;
+                            scheduleQuiz(u.stage);
+                        }
+                        break;
+                    }
+                }
+            }
+            isGrounded = landed;
+
+            for (let i = coinsMesh.length - 1; i >= 0; i--) {
+                const c = coinsMesh[i];
+                const pl = c.userData.plat;
+                c.position.set(pl.position.x, pl.position.y + 1.0, pl.position.z);
+                if (pl.visible && c.position.distanceTo(player.position) < 1.0) {
+                    scene.remove(c);
+                    coinsMesh.splice(i, 1);
+                    coins += 5;
+                    updateHUD();
+                }
+            }
+
+            const cp = stagePlatforms[currentStage - 1];
+            if (player.position.y < cp.position.y - 8) loseLife('Kamu terjatuh!');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (player && isGameStarted) {
+                updatePlatforms();
+                if (!isPaused) updatePlayer();
+                coinsMesh.forEach(c => { c.rotation.z += 0.03; });
+                camera.position.set(player.position.x, player.position.y + (race ? 6.5 : 4.5), player.position.z + (race ? 10 : 7));
+                camera.lookAt(player.position.x, player.position.y + 0.5, player.position.z);
+                dirLight.position.set(player.position.x + 20, player.position.y + 40, player.position.z + 20);
+                dirLight.target.position.copy(player.position);
+            }
+            netTick();
+            renderer.render(scene, camera);
+        }
+
+        // --- BOOT: jalan segera setelah DOM siap & tahan error ---
+        function boot() {
+            try { initThreeJS(); } catch (e) { console.error('Three.js gagal dimuat:', e); }
+            renderThemesGrid();
+            renderThemesGrid('lobbyThemes', pickLobbyTheme);
+            showScreen('menu');
+            
+            loadPeer().then(P => { if (P) PeerImpl = P; });
+            if (renderer) animate();
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+        else boot();
+    </script>
+</body>
+</html>
