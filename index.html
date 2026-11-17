@@ -902,8 +902,8 @@ themesData.forEach(t => (MORE[t.id] || []).forEach(([q, a, b, c, k]) => t.questi
             case 'lobby': lobby.players = d.players; lobby.themeId = d.th; lobby.state = d.st; lobby.left = d.left; renderLobby(); break;
             case 'out': showNotification(`${d.n} kehabisan nyawa / keluar dari balapan 💔`); if (net.isHost) raceLeave(d.id); break;
             case 'start': startRace(d); break;
-            case 'fin': if (net.isHost) assignRank(d.id, d.n, d.time); break;
-            case 'rank': handleRank(d); break;
+            case 'fin': if (net.isHost) declareWinner(d.id, d.n, d.time); break;
+            case 'winner': handleWinner(d); break;
             case 's': {
                 let r = remotes[d.id];
                 if (!r) {
@@ -980,7 +980,7 @@ themesData.forEach(t => (MORE[t.id] || []).forEach(([q, a, b, c, k]) => t.questi
             if (!net.isHost) return;
             if (lobby.players.length < 2) { showNotification('Minimal 2 pemain untuk balapan!'); return; }
             if (lobby.state === 'racing') { showNotification('Balapan masih berlangsung.'); return; }
-            lobby.state = 'racing'; lobby.racing = new Set(lobby.players.map(p => p.id)); lobby.left = lobby.racing.size;
+            lobby.state = 'racing'; lobby.winner = false; lobby.racing = new Set(lobby.players.map(p => p.id)); lobby.left = lobby.racing.size;
             const m = { t: 'start', id: myId, th: lobby.themeId, seed: (Math.random() * 4294967295) >>> 0, slots: lobby.players.map(p => p.id) };
             sendAll(m);
             startRace(m);
@@ -995,32 +995,41 @@ themesData.forEach(t => (MORE[t.id] || []).forEach(([q, a, b, c, k]) => t.questi
             startGameWithTheme(theme);
         }
 
-        // host menentukan urutan finish supaya semua pemain melihat hasil yang sama
-        function assignRank(pid, n, time) {
-            if (!race || race.ranks.some(r => r.pid === pid)) return;
-            const m = { t: 'rank', id: myId, pid, n, time, rank: race.ranks.length + 1 };
-            sendAll(m); handleRank(m); raceLeave(pid);
+        // Siapa yang PERTAMA sampai finish = pemenang. Host menetapkannya, lalu game berakhir untuk semua pemain
+        // dan semua orang (termasuk yang sudah kalah / ada di lobi) melihat popup nama pemenang.
+        function declareWinner(pid, n, time) {
+            if (!net.isHost || lobby.winner) return;
+            lobby.winner = true;
+            const others = [];
+            if (pid !== myId) others.push({ pid: myId, n: myNick, st: currentStage });
+            for (const id in remotes) if (id !== pid) others.push({ pid: id, n: remotes[id].info.n, st: remotes[id].info.st || 1 });
+            others.sort((x, y) => y.st - x.st);
+            const m = { t: 'winner', id: myId, pid, n, time, board: [{ pid, n, time }].concat(others) };
+            lobby.state = 'lobby'; lobby.racing = new Set();
+            sendAll(m);
+            handleWinner(m);
+            broadcastLobby();
         }
 
-        function handleRank(m) {
-            if (!race || race.ranks.some(r => r.pid === m.pid)) return;
-            race.ranks.push(m);
-            showNotification(m.rank === 1 ? `🏆 ${m.n} juara 1 dalam ${m.time}s!` : `${m.n} finish di posisi ${m.rank}`);
-            if (race.finished) showRaceModal();
-        }
-
-        function showRaceModal() {
-            const me = race.ranks.find(r => r.pid === myId);
-            document.getElementById('raceTitle').innerText = me ? (me.rank === 1 ? '🏆 JUARA 1!' : `Kamu finish ke-${me.rank}`) : 'Menunggu hasil...';
-            document.getElementById('rankList').innerHTML = race.ranks.map(r => `<div class="flex justify-between"><span>#${r.rank} ${esc(r.n)}</span><span>${r.time}s</span></div>`).join('');
+        function handleWinner(m) {
+            if (race) {                       // hentikan permainan yang sedang berjalan
+                race.over = true; race.finished = true;
+                isPaused = true; resetKeys();
+                clearTimeout(quizDelayTimer); clearInterval(timerInterval);
+            }
+            ['quizModal', 'countdown', 'gameOverModal'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            const me = m.pid === myId;
+            document.getElementById('raceTitle').innerText = me ? '🏆 KAMU JUARA 1!' : `🏆 ${m.n} Juara 1!`;
+            document.getElementById('rankList').innerHTML = m.board.map((r, i) => i === 0
+                ? `<div class="flex justify-between text-emerald-600"><span>🥇 ${esc(r.n)}</span><span>Finish ${m.time}s</span></div>`
+                : `<div class="flex justify-between"><span>#${i + 1} ${esc(r.n)}</span><span>Tahap ${r.st}/${totalStages}</span></div>`).join('');
             document.getElementById('raceModal').classList.remove('hidden');
         }
 
         function finishRace() {
             race.finished = true; isPaused = true; resetKeys(); clearInterval(timerInterval);
-            if (net.isHost) assignRank(myId, myNick, gameTimer);
-            else netSend({ t: 'fin', n: myNick, time: gameTimer });
-            showRaceModal();
+            if (net.isHost) declareWinner(myId, myNick, gameTimer);
+            else { netSend({ t: 'fin', n: myNick, time: gameTimer }); showNotification('Kamu sampai finish! Menunggu konfirmasi pemenang...'); }
         }
 
         function renderPlayersPanel() {
